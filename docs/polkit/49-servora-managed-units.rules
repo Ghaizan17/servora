@@ -1,0 +1,28 @@
+// Optional Polkit rule for Servora.
+//
+// Servora does NOT need this file to work: it relies on systemd's own action
+// `org.freedesktop.systemd1.manage-units`, which already defaults to
+// `auth_admin_keep`. Installing this rule only makes the intent explicit and
+// keeps the admin prompt for the three units Servora manages.
+//
+// Install (optional):
+//   sudo install -Dm644 docs/polkit/49-servora-managed-units.rules \
+//     /etc/polkit-1/rules.d/49-servora-managed-units.rules
+//   sudo systemctl restart polkit
+//
+// Remove:
+//   sudo rm /etc/polkit-1/rules.d/49-servora-managed-units.rules
+//   sudo systemctl restart polkit
+
+polkit.addRule(function (action, subject) {
+    if (action.id !== "org.freedesktop.systemd1.manage-units") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    var managed = ["httpd.service", "php-fpm.service", "mariadb.service"];
+    var unit = action.lookup("unit");
+    if (managed.indexOf(unit) !== -1) {
+        // Same strength as the default policy: the user must authenticate.
+        return polkit.Result.AUTH_ADMIN_KEEP;
+    }
+    return polkit.Result.NOT_HANDLED;
+});
