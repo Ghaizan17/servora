@@ -4,6 +4,27 @@ All notable changes to Servora are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-11-25
+
+### Changed
+
+- Native `<select>` elements are gone. The log line limit and the project type
+  field now use `components/select.js`, a listbox built from the design tokens:
+  same border, radius, hover and focus ring as `.field`, teal highlight for the
+  selected row, and a check mark. It follows the dark and light themes because it
+  reads the same CSS variables.
+- The dropdown supports keyboard navigation (ArrowUp / ArrowDown / Home / End /
+  Enter / Space / Escape / Tab), reports `aria-haspopup` / `aria-expanded` /
+  `aria-activedescendant`, closes on an outside click, and flips above the trigger
+  when the list would leave its dialog or the viewport.
+
+### Added
+
+- The navigation smoke test now covers the dropdowns as well: no native `<select>`
+  may render, the list must open, respond to the keyboard, select a value, close,
+  mark exactly one option as selected, stay inside its dialog and inside the
+  viewport.
+
 ## [0.1.2] - 2026-11-25
 
 ### Fixed

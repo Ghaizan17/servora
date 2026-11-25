@@ -78,4 +78,5 @@ export const icons = {
   download: (size) =>
     svg('<path d="M12 4v10"/><path d="m8 11 4 4 4-4"/><path d="M5 19h14"/>', size),
   x: (size) => svg('<path d="M6 6l12 12"/><path d="M18 6 6 18"/>', size),
+  chevron: (size) => svg('<path d="m6 9 6 6 6-6"/>', size),
 };

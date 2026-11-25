@@ -524,6 +524,19 @@
 
       await import("/src/main.js");
 
+      // Screenshot helpers: `?openSelect=1` opens the first custom dropdown and
+      // `?openCreate=1` opens the "New website" dialog, both after the first paint.
+      const params = new URLSearchParams(location.search);
+      if (params.get("openCreate") === "1") {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        document.querySelector('[data-role="create"]')?.click();
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+      if (params.get("openSelect") === "1") {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        document.querySelector(".select-trigger")?.click();
+      }
+
       // Navigation smoke test: `?smoke=1` clicks every sidebar entry and reports
       // whether each page actually rendered. Used by scripts/ui-smoke.sh with
       // `chrome --headless=new --dump-dom`.
@@ -585,6 +598,106 @@
           }
         } catch (error) {
           problems.push(`smoke aborted: ${error?.message ?? error}`);
+        }
+
+        // Custom dropdowns: no native <select> anywhere, and the listbox works
+        // with both the mouse and the keyboard.
+        document.querySelector('[data-route="logs"]')?.click();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        const nativeSelects = document.querySelectorAll("select");
+        if (nativeSelects.length) {
+          problems.push(`${nativeSelects.length} native <select> element(s) rendered`);
+        }
+
+        const trigger = document.querySelector(".select-trigger");
+        if (!trigger) {
+          problems.push("no custom select on the Logs page");
+        } else {
+          const label = trigger.querySelector(".select-label");
+          const before = label.textContent;
+          trigger.click();
+          await new Promise((resolve) => setTimeout(resolve, 60));
+          const menu = document.querySelector(".select-menu");
+          if (!menu || menu.hidden) problems.push("select menu did not open");
+          if (trigger.getAttribute("aria-expanded") !== "true") {
+            problems.push("select trigger did not report aria-expanded");
+          }
+          const menuBox = menu ? menu.getBoundingClientRect() : null;
+          if (menuBox && (menuBox.top < 0 || menuBox.bottom > window.innerHeight)) {
+            problems.push(
+              `select menu outside the viewport (${Math.round(menuBox.top)}…${Math.round(menuBox.bottom)})`,
+            );
+          }
+          const activeBefore = trigger.getAttribute("aria-activedescendant");
+          document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+          if (trigger.getAttribute("aria-activedescendant") === activeBefore) {
+            problems.push("ArrowDown did not move the highlight");
+          }
+          document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+          await new Promise((resolve) => setTimeout(resolve, 60));
+          if (!menu.hidden) problems.push("Enter did not close the menu");
+          if (label.textContent === before) problems.push("Enter did not change the value");
+          if (trigger.getAttribute("aria-expanded") !== "false") {
+            problems.push("select trigger stayed expanded after selecting");
+          }
+          const selected = menu.querySelectorAll('[role="option"][aria-selected="true"]');
+          if (selected.length !== 1) {
+            problems.push(`${selected.length} options marked selected`);
+          }
+        }
+
+        // The website form uses the same dropdown inside a dialog.
+        document.querySelector('[data-route="websites"]')?.click();
+        await new Promise((resolve) => setTimeout(resolve, 220));
+        document.querySelector('[data-role="create"]')?.click();
+        await new Promise((resolve) => setTimeout(resolve, 260));
+
+        const dialog = document.querySelector('[role="dialog"]');
+        if (!dialog) {
+          problems.push("the New website dialog did not open");
+        } else {
+          if (dialog.querySelectorAll("select").length) {
+            problems.push("the website form still renders a native <select>");
+          }
+          const typeTrigger = dialog.querySelector(".select-trigger");
+          if (!typeTrigger) {
+            problems.push("the website form has no custom select");
+          } else {
+            typeTrigger.click();
+            await new Promise((resolve) => setTimeout(resolve, 80));
+            const typeMenu = dialog.querySelector(".select-menu");
+            if (!typeMenu || typeMenu.hidden) problems.push("form select did not open");
+            const panel = dialog.getBoundingClientRect();
+            const menuBox = typeMenu.getBoundingClientRect();
+            if (menuBox.top < panel.top || menuBox.bottom > panel.bottom) {
+              problems.push("form select menu leaves the dialog");
+            }
+            const laravel = [...typeMenu.querySelectorAll('[role="option"]')].find(
+              (option) => option.dataset.value === "laravel",
+            );
+            if (!laravel) {
+              problems.push("the form select has no Laravel option");
+            } else {
+              laravel.click();
+              await new Promise((resolve) => setTimeout(resolve, 80));
+              const label = typeTrigger.querySelector(".select-label").textContent;
+              if (label !== "Laravel") problems.push(`form select label is "${label}"`);
+              if (!typeMenu.hidden) problems.push("form select did not close after choosing");
+            }
+          }
+          // Escape bubbles from whatever holds focus inside the dialog.
+          const escapeTarget =
+            dialog.contains(document.activeElement) && document.activeElement
+              ? document.activeElement
+              : dialog;
+          escapeTarget.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+          );
+          await new Promise((resolve) => setTimeout(resolve, 120));
+          if (document.querySelector('[role="dialog"]')) {
+            problems.push("Escape did not close the dialog");
+          }
         }
 
         const report = document.createElement("pre");

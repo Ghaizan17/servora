@@ -6,6 +6,7 @@ import { escapeHtml, relativeTime } from "../lib/format.js";
 import { icons } from "../lib/icons.js";
 import { getSettings } from "../lib/store.js";
 import { inlineSpinner, placeholder } from "../components/ui.js";
+import { select } from "../components/select.js";
 import { toast, toastError } from "../components/toast.js";
 
 const SERVICES = [
@@ -40,12 +41,10 @@ export function Logs() {
               `<button data-level="${level.id}" aria-pressed="${level.id === "all"}">${level.label}</button>`,
           ).join("")}
         </div>
-        <label class="flex items-center gap-2 text-[12px] text-muted">
-          Lines
-          <select data-role="limit" class="field py-1 pr-6">
-            ${LIMITS.map((limit) => `<option value="${limit}">${limit}</option>`).join("")}
-          </select>
-        </label>
+        <div class="flex items-center gap-2 text-[12px] text-muted">
+          <span id="log-limit-label">Lines</span>
+          <div data-role="limit" class="w-[76px]"></div>
+        </div>
       </div>
 
       <div class="flex items-center gap-2">
@@ -86,7 +85,17 @@ export function Logs() {
     data: null,
   };
 
-  refs.limit.value = String(state.limit);
+  const limitSelect = select({
+    options: LIMITS.map((limit) => ({ value: String(limit), label: `${limit} lines` })),
+    value: String(state.limit),
+    ariaLabel: "Log line limit",
+    onChange: (value) => {
+      state.limit = Number(value) || 300;
+      load();
+    },
+  });
+  refs.limit.append(limitSelect.element);
+
   render();
 
   function summaryText() {
@@ -207,11 +216,6 @@ export function Logs() {
       });
       load();
     });
-  });
-
-  refs.limit.addEventListener("change", () => {
-    state.limit = Number(refs.limit.value) || 300;
-    load();
   });
 
   refs.refresh.addEventListener("click", () => load());

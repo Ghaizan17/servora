@@ -33,7 +33,8 @@ if ! grep -q 'id="smoke-result"' "$out"; then
 fi
 
 report=$(awk '/id="smoke-result"/{flag=1} flag{print} /<\/pre>/{if(flag) exit}' "$out" \
-    | sed -e 's/<[^>]*>//g' -e 's/\r//g')
+    | sed -e 's/<[^>]*>//g' -e 's/\r//g' \
+    | sed -e 's/^.*SMOKE/SMOKE/' -e '/^SMOKE/,$!d')
 
 if printf '%s' "$report" | grep -q "SMOKE PASS"; then
     printf '%s\n' "$report"

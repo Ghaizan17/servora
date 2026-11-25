@@ -10,6 +10,7 @@
 import { api, ServoraError } from "../lib/ipc.js";
 import { icons } from "../lib/icons.js";
 import { escapeHtml } from "./modal.js";
+import { select } from "./select.js";
 
 const TYPE_LABELS = {
   laravel: "Laravel",
@@ -77,14 +78,7 @@ export function createWebsiteForm({ mode = "create", initial = null } = {}) {
       ${field({
         id: "sf-type",
         label: "Project type",
-        control: `<select id="sf-type" data-role="type" class="field w-full">
-            ${Object.entries(TYPE_LABELS)
-              .map(
-                ([value, label]) =>
-                  `<option value="${value}"${(initial?.projectType ?? "unknown") === value ? " selected" : ""}>${label}</option>`,
-              )
-              .join("")}
-          </select>`,
+        control: `<div data-role="type" id="sf-type"></div>`,
       })}
     </div>
     <p data-role="warnings" class="hidden rounded-xl border border-warn/40 bg-warn/10 px-3.5 py-2.5 text-[12px] leading-relaxed text-warn"></p>
@@ -94,7 +88,14 @@ export function createWebsiteForm({ mode = "create", initial = null } = {}) {
   const name = element.querySelector('[data-role="name"]');
   const domain = element.querySelector('[data-role="domain"]');
   const root = element.querySelector('[data-role="root"]');
-  const type = element.querySelector('[data-role="type"]');
+  const typeSlot = element.querySelector('[data-role="type"]');
+  const type = select({
+    options: Object.entries(TYPE_LABELS).map(([value, label]) => ({ value, label })),
+    value: initial?.projectType ?? "unknown",
+    ariaLabel: "Project type",
+    block: true,
+  });
+  typeSlot.append(type.element);
   const detection = element.querySelector('[data-role="detection"]');
   const detectionText = element.querySelector('[data-role="detection-text"]');
   const warnings = element.querySelector('[data-role="warnings"]');
@@ -167,8 +168,9 @@ export function createWebsiteForm({ mode = "create", initial = null } = {}) {
       `;
 
       if (!rootTouched && inspection.documentRoot) root.value = inspection.documentRoot;
-      if (inspection.projectType === "unknown") type.value = "unknown";
-      else type.value = inspection.projectType;
+      type.setValue(
+        inspection.projectType === "unknown" ? "unknown" : inspection.projectType,
+      );
 
       if (!nameTouched) {
         const base = value.replace(/\/+$/, "").split("/").pop() ?? "";
@@ -242,7 +244,7 @@ export function createWebsiteForm({ mode = "create", initial = null } = {}) {
         domain: domain.value.trim(),
         projectPath: path.value.trim(),
         documentRoot: root.value.trim() || null,
-        projectType: type.value || null,
+        projectType: type.getValue() || null,
       };
     },
     validate() {
