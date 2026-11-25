@@ -144,7 +144,7 @@ class ServiceCard {
     this.refs.overlay.classList.toggle("hidden", !busy);
     this.refs.overlay.classList.toggle("flex", busy);
     this.refs.overlay.innerHTML = busy
-      ? `<span class="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-1.5 text-[11.5px] font-medium text-ink-soft">${inlineSpinner(13)} working…</span>`
+      ? `<span class="flex items-center gap-2 rounded-lg border border-line bg-panel px-3 py-1.5 text-[11.5px] font-medium text-ink-soft">${inlineSpinner(13)} working — authenticate if prompted</span>`
       : "";
   }
 }

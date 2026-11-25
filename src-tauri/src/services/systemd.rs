@@ -13,17 +13,18 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
+use zbus::proxy::MethodFlags;
 use zbus::zvariant::{OwnedObjectPath, OwnedValue};
-use zbus::Connection;
+use zbus::{Connection, Proxy};
 
 use crate::error::{AppError, AppResult};
 use crate::models::service::{ServiceId, ServiceOperation, ServiceState, ServiceStatus};
 
 const SYSTEMD_DESTINATION: &str = "org.freedesktop.systemd1";
-const SYSTEMD_PATH: &str = "/org/freedesktop/systemd1";
 const SYSTEMD_MANAGER: &str = "org.freedesktop.systemd1.Manager";
 const SYSTEMD_UNIT: &str = "org.freedesktop.systemd1.Unit";
 const PROPERTIES: &str = "org.freedesktop.DBus.Properties";
+const SYSTEMD_MANAGER_PATH: &str = "/org/freedesktop/systemd1";
 
 /// How long a D-Bus method may block waiting for the Polkit dialog.
 const AUTHORIZATION_TIMEOUT: Duration = Duration::from_secs(120);
@@ -57,9 +58,15 @@ struct UnitInfo {
 }
 
 /// Thin, typed wrapper around the systemd manager.
+///
+/// The manager proxy is created once and always called with the
+/// `AllowInteractiveAuth` flag, so Polkit is permitted to show the desktop
+/// authentication dialog instead of failing with "interactive authentication
+/// has not been enabled by the calling program".
 #[derive(Clone)]
 pub struct SystemdClient {
     connection: Connection,
+    manager: Proxy<'static>,
 }
 
 impl SystemdClient {
@@ -69,7 +76,20 @@ impl SystemdClient {
             .await
             .map_err(|_| AppError::DbusUnavailable("connection attempt timed out".into()))?
             .map_err(|err| classify_connection_error(&err))?;
-        Ok(Self { connection })
+
+        let manager = Proxy::new_owned(
+            connection.clone(),
+            SYSTEMD_DESTINATION,
+            SYSTEMD_MANAGER_PATH,
+            SYSTEMD_MANAGER,
+        )
+        .await
+        .map_err(|err| classify_connection_error(&err))?;
+
+        Ok(Self {
+            connection,
+            manager,
+        })
     }
 
     /// Read-only status for one managed service.
@@ -161,34 +181,25 @@ impl SystemdClient {
 
     /// `LoadUnit` returns the object path of a unit, loading it if necessary.
     async fn load_unit(&self, unit: &str) -> AppResult<OwnedObjectPath> {
-        let reply = self
-            .call_manager("LoadUnit", &(unit,), unit)
-            .await?;
-        let path: OwnedObjectPath = reply
-            .body()
-            .deserialize()
-            .map_err(|err| AppError::Internal(format!("unexpected LoadUnit reply: {err}")))?;
-        Ok(path)
+        self.call_manager("LoadUnit", &(unit,), unit).await
     }
 
-    async fn call_manager<B>(
-        &self,
-        method: &str,
-        body: &B,
-        unit: &str,
-    ) -> AppResult<zbus::Message>
+    /// Invoke a `org.freedesktop.systemd1.Manager` method that may require
+    /// Polkit approval. All three job methods return the job object path.
+    async fn call_manager<B>(&self, method: &str, body: &B, unit: &str) -> AppResult<OwnedObjectPath>
     where
         B: serde::Serialize + zbus::zvariant::DynamicType,
     {
-        let call = self.connection.call_method(
-            Some(SYSTEMD_DESTINATION),
-            SYSTEMD_PATH,
-            Some(SYSTEMD_MANAGER),
+        let call = self.manager.call_with_flags(
             method,
+            MethodFlags::AllowInteractiveAuth.into(),
             body,
         );
         match tokio::time::timeout(AUTHORIZATION_TIMEOUT, call).await {
-            Ok(Ok(message)) => Ok(message),
+            Ok(Ok(Some(path))) => Ok(path),
+            Ok(Ok(None)) => Err(AppError::Internal(format!(
+                "systemd returned no object path for {method}"
+            ))),
             Ok(Err(err)) => Err(classify_dbus_error(unit, &err)),
             Err(_) => Err(AppError::OperationTimeout(unit.to_string())),
         }

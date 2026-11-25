@@ -139,7 +139,7 @@ impl AppError {
                 "The system D-Bus could not be reached. Check that `dbus-broker` or `dbus-daemon` is running."
             }
             AppError::OperationTimeout(_) => {
-                "The service did not reach the expected state in time. Check `journalctl -u <unit>` for details."
+                "The request timed out. If a Polkit authentication dialog was left unanswered, run the action again and authenticate. Otherwise check `journalctl -u <unit>` for details."
             }
             AppError::LogRetrievalFailed(_) => {
                 "Make sure `journalctl` is available and your user can read the journal (`usermod -aG systemd-journal $USER`)."
