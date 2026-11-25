@@ -2,6 +2,11 @@
 
 **Local Development Environment Manager** — *Your Fedora PHP stack, one window.*
 
+[![Latest release](https://img.shields.io/github/v/release/Ghaizan17/servora?label=release)](https://github.com/Ghaizan17/servora/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**Download:** [latest release](https://github.com/Ghaizan17/servora/releases/latest) — RPM for Fedora, AppImage for everything else.
+
 Servora is a lightweight Linux desktop application for running the services that
 power a PHP stack — **Apache HTTP Server**, **PHP-FPM** and **MariaDB** — and for
 managing the local websites served by them. It drives the real systemd units
