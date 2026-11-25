@@ -17,6 +17,7 @@ import { Diagnostics } from "./pages/Diagnostics.js";
 import { Settings } from "./pages/Settings.js";
 import { About } from "./pages/About.js";
 import { toastError } from "./components/toast.js";
+import { placeholder } from "./components/ui.js";
 import { escapeHtml } from "./lib/format.js";
 
 const ROUTES = [
@@ -128,7 +129,7 @@ function buildShell() {
             <span data-role="header-badge" class="badge state-inactive"><span class="dot"></span><span data-role="header-state">checking</span></span>
           </div>
         </header>
-        <div data-role="view" class="min-h-0 flex-1"></div>
+        <div data-role="view" class="flex min-h-0 flex-1 flex-col px-5 py-4"></div>
       </main>
     </div>
 
@@ -163,11 +164,15 @@ async function main() {
     const route = ROUTES.find((candidate) => candidate.id === routeId) ?? ROUTES[0];
     if (current?.route.id === route.id) return;
 
-    current?.page.unmount();
+    // `unmount` is optional: pages without timers or pollers do not define it.
+    try {
+      current?.page.unmount?.();
+    } catch (error) {
+      console.error(`failed to unmount ${current?.route.id}`, error);
+    }
+
     shell.view.replaceChildren();
-    const page = route.create();
-    shell.view.appendChild(page.element);
-    current = { route, page };
+    current = null;
 
     shell.title.textContent = route.label;
     shell.subtitle.textContent = route.subtitle;
@@ -176,8 +181,27 @@ async function main() {
       if (active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
-    page.mount();
-    location.hash = route.id;
+
+    try {
+      const page = route.create();
+      shell.view.appendChild(page.element);
+      current = { route, page };
+      page.mount();
+    } catch (error) {
+      // A broken page must not strand the user on an empty window.
+      console.error(`failed to open ${route.id}`, error);
+      shell.view.replaceChildren(
+        placeholder({
+          icon: icons.alert(22),
+          title: `${route.label} could not be opened`,
+          message: error?.message ?? "Unknown error",
+          tone: "danger",
+          action: { label: "Try again", onClick: () => activate(route.id) },
+        }),
+      );
+    }
+
+    if (location.hash !== `#${route.id}`) location.hash = route.id;
   }
 
   shell.navButtons.forEach((button) => {

@@ -162,7 +162,7 @@ class ServiceCard {
 
 export function Dashboard() {
   const element = document.createElement("div");
-  element.className = "flex h-full flex-col gap-4 overflow-y-auto px-5 py-4";
+  element.className = "flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto";
   element.innerHTML = `
     <section class="card flex flex-wrap items-center justify-between gap-4 px-5 py-4">
       <div class="flex items-center gap-4">

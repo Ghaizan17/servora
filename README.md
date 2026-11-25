@@ -121,6 +121,7 @@ Useful scripts:
 | `npm run app:build:appimage` | Build the AppImage only |
 | `cargo test --manifest-path src-tauri/Cargo.toml --workspace` | Rust unit + integration tests |
 | `cargo test -p servora-core` | Business-logic tests only (fast, no system access) |
+| `scripts/ui-smoke.sh` | Clicks through every page in headless Chrome (needs `npm run dev` running) |
 
 Live write tests are opt-in because they rewrite real Apache configuration and
 need Polkit authentication:

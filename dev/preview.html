@@ -498,8 +498,22 @@
         "plugin:opener|open_url": () => null,
       };
 
+      // Tauri registers callback ids for event listeners; the frontend uses the
+      // event API (tray, settings), so the mock has to provide it too.
+      const callbacks = new Map();
+      let nextCallbackId = 0;
+
       window.__TAURI_INTERNALS__ = {
         metadata: { currentWindow: { label: "main" }, currentWebview: { windowLabel: "main", label: "main" } },
+        callbacks,
+        transformCallback: (callback, once = false) => {
+          const id = ++nextCallbackId;
+          callbacks.set(id, (payload) => {
+            if (once) callbacks.delete(id);
+            callback(payload);
+          });
+          return id;
+        },
         convertFileSrc: (path) => path,
         invoke: async (command, args) => {
           const handler = handlers[command.split("|")[0]] || handlers[command];
@@ -509,6 +523,80 @@
       };
 
       await import("/src/main.js");
+
+      // Navigation smoke test: `?smoke=1` clicks every sidebar entry and reports
+      // whether each page actually rendered. Used by scripts/ui-smoke.sh with
+      // `chrome --headless=new --dump-dom`.
+      if (new URLSearchParams(location.search).get("smoke") === "1") {
+        const problems = [];
+        // Navigation failures are logged rather than thrown, so watch the console.
+        const originalConsoleError = console.error.bind(console);
+        console.error = (...args) => {
+          problems.push(`console.error: ${args.map((value) => String(value)).join(" ")}`);
+          originalConsoleError(...args);
+        };
+        window.addEventListener("error", (event) => {
+          problems.push(`${event.message}`);
+        });
+        window.addEventListener("unhandledrejection", (event) => {
+          problems.push(`${event.reason?.message ?? event.reason}`);
+        });
+
+        const buttons = [...document.querySelectorAll("[data-route]")];
+        // Visit each page twice: leaving a page is what used to break navigation.
+        const order = [...buttons, ...[...buttons].reverse()];
+        try {
+          for (const button of order) {
+            const route = button.dataset.route;
+            const before = document.querySelector('[data-role="title"]').textContent;
+            try {
+              button.click();
+            } catch (error) {
+              problems.push(`${route}: click threw ${error?.message ?? error}`);
+            }
+            await new Promise((resolve) => setTimeout(resolve, 120));
+            const view = document.querySelector('[data-role="view"]');
+            const title = document.querySelector('[data-role="title"]').textContent;
+            const rendered = view.children.length > 0 && view.textContent.trim().length > 0;
+            const rawMarkup = /<div class="|\[object Object\]/.test(view.textContent);
+            if (!rendered) problems.push(`${route}: empty view (previous page was ${before})`);
+            if (rawMarkup) problems.push(`${route}: raw markup rendered as text`);
+            if (title.toLowerCase() !== route.toLowerCase()) {
+              problems.push(`${route}: header shows "${title}"`);
+            }
+            if (location.hash !== `#${route}`) {
+              problems.push(`${route}: hash is ${location.hash || "(empty)"}`);
+            }
+
+            // Content must keep a gap from the sidebar and the window edge.
+            const viewStyle = getComputedStyle(view);
+            const padLeft = parseFloat(viewStyle.paddingLeft);
+            const padRight = parseFloat(viewStyle.paddingRight);
+            if (!(padLeft >= 16) || !(padRight >= 16)) {
+              problems.push(`${route}: content padding ${padLeft}px / ${padRight}px`);
+            }
+            const page = view.firstElementChild;
+            if (page && page.getBoundingClientRect().left < 212) {
+              problems.push(`${route}: content overlaps the sidebar`);
+            }
+            if (view.scrollWidth > view.clientWidth + 1) {
+              problems.push(`${route}: content overflows horizontally`);
+            }
+          }
+        } catch (error) {
+          problems.push(`smoke aborted: ${error?.message ?? error}`);
+        }
+
+        const report = document.createElement("pre");
+        report.id = "smoke-result";
+        report.textContent = problems.length
+          ? `SMOKE FAIL\n${problems.join("\n")}`
+          : `SMOKE PASS ${order.length} navigations over ${buttons.length} pages`;
+        report.style.cssText =
+          "position:fixed;bottom:4px;left:4px;z-index:9999;color:#7ef;font:11px monospace";
+        document.body.append(report);
+        document.title = problems.length ? "SMOKE FAIL" : "SMOKE PASS";
+      }
     </script>
   </body>
 </html>

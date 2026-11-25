@@ -19,7 +19,7 @@ const THEMES = [
 
 export function Settings() {
   const element = document.createElement("div");
-  element.className = "flex h-full flex-col gap-4 overflow-y-auto px-5 py-4";
+  element.className = "flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto";
   element.innerHTML = `
     <div class="grid gap-4 lg:grid-cols-2">
       <section class="card px-5 py-4">

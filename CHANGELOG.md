@@ -4,6 +4,26 @@ All notable changes to Servora are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-11-25
+
+### Fixed
+
+- Leaving the **Domains** (or **About**, or **Diagnostics**) page closed the
+  window content and stopped navigation: the router called `unmount()` on pages
+  that do not define one, threw a `TypeError` after clearing the view, and never
+  mounted the next page. The call is now optional and a page that throws is shown
+  as an error state instead of an empty window.
+- Content now keeps a consistent gap from the sidebar and the window edge: the
+  padding lives in the shell view host instead of being repeated by some pages and
+  missing from others (Websites, Domains, Diagnostics and About had none).
+
+### Added
+
+- `scripts/ui-smoke.sh` — headless navigation smoke test over the preview harness
+  (`?smoke=1`) that clicks every page in both directions and fails on an empty
+  view, raw markup, a stale header, a stale hash, missing content padding or
+  horizontal overflow.
+
 ## [0.1.1] - 2026-11-25
 
 ### Fixed

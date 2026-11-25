@@ -24,7 +24,7 @@ const LIMITS = [100, 300, 500, 1000, 2000];
 
 export function Logs() {
   const element = document.createElement("div");
-  element.className = "flex h-full min-h-0 flex-col gap-3 px-5 py-4";
+  element.className = "flex min-h-0 flex-1 flex-col gap-3";
   element.innerHTML = `
     <section class="card flex flex-wrap items-center justify-between gap-3 px-4 py-3">
       <div class="flex flex-wrap items-center gap-3">
