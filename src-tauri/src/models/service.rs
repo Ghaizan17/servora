@@ -140,10 +140,7 @@ impl ServiceState {
 
     /// True while a transition is in flight.
     pub fn is_transitioning(self) -> bool {
-        matches!(
-            self,
-            ServiceState::Activating | ServiceState::Deactivating
-        )
+        matches!(self, ServiceState::Activating | ServiceState::Deactivating)
     }
 
     pub fn label(self) -> &'static str {
@@ -386,8 +383,14 @@ mod tests {
 
     #[test]
     fn serde_uses_frontend_slugs() {
-        assert_eq!(serde_json::to_string(&ServiceId::PhpFpm).unwrap(), "\"php-fpm\"");
-        assert_eq!(serde_json::to_string(&ServiceId::MariaDb).unwrap(), "\"mariadb\"");
+        assert_eq!(
+            serde_json::to_string(&ServiceId::PhpFpm).unwrap(),
+            "\"php-fpm\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ServiceId::MariaDb).unwrap(),
+            "\"mariadb\""
+        );
         let parsed: ServiceId = serde_json::from_str("\"httpd\"").unwrap();
         assert_eq!(parsed, ServiceId::Httpd);
         assert!(serde_json::from_str::<ServiceId>("\"sshd\"").is_err());

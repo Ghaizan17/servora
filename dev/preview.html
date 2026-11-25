@@ -99,6 +99,85 @@
         };
       });
 
+
+      const hostInfo = {
+        fedoraVersion: "45",
+        architecture: "x86_64",
+        kernel: "6.17.4-200.fc45.x86_64",
+        user: "user",
+        home: "/home/user",
+        selinux: "Enforcing",
+      };
+
+      const siteStatus = {
+        configPath: "/etc/httpd/conf.d/e-perpus-skenda.com.conf",
+        configExists: true,
+        configOwner: "managed by Servora",
+        servesDomain: true,
+        documentRoot: "/home/user/Work/e-perpus-skenda/public",
+        documentRootExists: true,
+        hostsState: "managed",
+        healthy: true,
+        warnings: [],
+      };
+
+      let websites = [
+        {
+          id: "e-perpus-skenda",
+          name: "e-perpus-skenda",
+          domain: "e-perpus-skenda.com",
+          projectPath: "/home/user/Work/e-perpus-skenda",
+          documentRoot: "/home/user/Work/e-perpus-skenda/public",
+          projectType: "laravel",
+          origin: "importedSiteForge",
+          createdAtMs: Date.now() - 86400000 * 12,
+          updatedAtMs: Date.now() - 3600000 * 5,
+          url: "http://e-perpus-skenda.com/",
+          state: "live",
+          status: siteStatus,
+        },
+        {
+          id: "red-shop",
+          name: "red-shop",
+          domain: "red-shop.com",
+          projectPath: "/home/user/Work/red-shop",
+          documentRoot: "/home/user/Work/red-shop/public",
+          projectType: "wordpress",
+          origin: "created",
+          createdAtMs: Date.now() - 86400000 * 4,
+          updatedAtMs: Date.now() - 60000 * 42,
+          url: "http://red-shop.com/",
+          state: "hosts-missing",
+          status: {
+            ...siteStatus,
+            configPath: "/etc/httpd/conf.d/red-shop.com.conf",
+            hostsState: "absent",
+            healthy: false,
+            warnings: ["/etc/hosts has no entry for this domain"],
+          },
+        },
+        {
+          id: "inventory-api",
+          name: "inventory-api",
+          domain: "inventory-api.test",
+          projectPath: "/home/user/Work/inventory-api",
+          documentRoot: "/home/user/Work/inventory-api/public",
+          projectType: "php",
+          origin: "created",
+          createdAtMs: Date.now() - 86400000 * 2,
+          updatedAtMs: Date.now() - 60000 * 8,
+          url: "http://inventory-api.test/",
+          state: "live",
+          status: { ...siteStatus, configPath: "/etc/httpd/conf.d/inventory-api.test.conf" },
+        },
+      ];
+
+      const history = [
+        { atMs: Date.now() - 60000 * 8, operation: "create", website: "inventory-api", success: true, summary: "7 steps completed" },
+        { atMs: Date.now() - 60000 * 42, operation: "update", website: "red-shop", success: true, summary: "6 steps completed" },
+        { atMs: Date.now() - 3600000 * 5, operation: "import", website: "e-perpus-skenda", success: true, summary: "8 steps completed" },
+      ];
+
       const scenario = new URLSearchParams(location.search).get("scenario") || "";
 
       function degraded() {
@@ -193,9 +272,229 @@
             retrievedAtMs: Date.now(),
           };
         },
+        // ---------------------------------------------------- website manager
+        get_websites: () => websites,
+        get_website: (args) => websites.find((site) => site.id === args.website),
+        get_website_history: () => history,
+        get_virtualhost_status: () => ({
+          owner: "servora",
+          serverNames: ["e-perpus-skenda.com"],
+          serverAliases: ["www.e-perpus-skenda.com"],
+          documentRoots: ["/home/user/Work/e-perpus/public"],
+          directoryRoots: ["/home/user/Work/e-perpus/public"],
+          port: "80",
+        }),
+        detect_project_type: (args) => ({
+          projectPath: args.request.path,
+          projectType: "laravel",
+          documentRoot: `${args.request.path.replace(/\/+$/, "")}/public`,
+          detectedBy: ["artisan", "composer.json", "public/index.php"],
+          hasArtisan: true,
+          hasComposer: true,
+          hasPublicIndex: true,
+          hasRootIndex: false,
+          hasWpConfig: false,
+          writableDirs: ["storage", "bootstrap/cache"],
+          warnings: [],
+        }),
+        detect_document_root: (args) =>
+          handlers.detect_project_type(args),
+        validate_domain: (args) => {
+          const domain = String(args.domain || "").trim();
+          if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
+            return {
+              valid: false,
+              domain,
+              message: "Enter a valid domain such as my-project.test",
+              hint: "Lowercase letters, digits, dots and dashes only.",
+            };
+          }
+          return {
+            valid: true,
+            domain: domain.toLowerCase(),
+            isLocalDevelopment: true,
+            suffix: "test",
+            url: `http://${domain.toLowerCase()}/`,
+            takenByServora: false,
+            hostsState: "managed",
+          };
+        },
+        check_domain_conflicts: () => ({
+          nameTaken: false,
+          domainTaken: false,
+          configExists: false,
+          hostsState: "absent",
+          projectExists: true,
+          documentRootExists: true,
+          blocking: false,
+          warnings: [],
+        }),
+        create_website: (args) => {
+          const request = args.request;
+          const record = {
+            id: request.name,
+            name: request.name,
+            domain: request.domain,
+            projectPath: request.projectPath,
+            documentRoot: request.documentRoot || `${request.projectPath}/public`,
+            projectType: request.projectType || "laravel",
+            origin: "created",
+            createdAtMs: Date.now(),
+            updatedAtMs: Date.now(),
+          };
+          websites.push({
+            ...record,
+            url: `http://${record.domain}/`,
+            state: "live",
+            status: {
+              configPath: `/etc/httpd/conf.d/${record.domain}.conf`,
+              configExists: true,
+              configOwner: "managed by Servora",
+              servesDomain: true,
+              documentRoot: record.documentRoot,
+              documentRootExists: true,
+              hostsState: "managed",
+              healthy: true,
+              warnings: [],
+            },
+          });
+          return {
+            operation: "create",
+            websiteId: record.id,
+            websiteName: record.name,
+            success: true,
+            outcome: { operation: "create", success: true, steps: [], warnings: [], warningsRollback: null },
+            website: record,
+            warnings: [],
+          };
+        },
+        update_website: (args) => handlers.create_website({ request: args.request }),
+        rename_website: (args) =>
+          handlers.update_website({
+            website: args.request.website,
+            request: {
+              ...websites.find((site) => site.id === args.request.website),
+              domain: args.request.domain,
+            },
+          }),
+        remove_website: (args) => {
+          websites = websites.filter((site) => site.id !== args.website);
+          return {
+            operation: "remove",
+            websiteId: args.website,
+            websiteName: args.website,
+            success: true,
+            outcome: { operation: "remove", success: true, steps: [], warnings: [] },
+            warnings: ["source files were left untouched"],
+          };
+        },
+        get_managed_domains: () => ({
+          domains: websites.map((site, index) => ({
+            domain: site.domain,
+            ip: "127.0.0.1",
+            website: site.name,
+            websiteId: site.id,
+            managed: true,
+            line: index + 3,
+          })),
+          hostsPath: "/etc/hosts",
+          servoraWebsites: websites.map((site) => ({
+            domain: site.domain,
+            website: site.name,
+            websiteId: site.id,
+          })),
+        }),
+        preview_siteforge_migration: () =>
+          scenario === "nomigration"
+            ? { scannedAtMs: Date.now(), confDir: "/etc/httpd/conf.d", siteforgeInstalled: false, candidates: [], ignored: [] }
+            : {
+                scannedAtMs: Date.now(),
+                confDir: "/etc/httpd/conf.d",
+                siteforgeInstalled: true,
+                candidates: [
+                  {
+                    name: "e-perpus-skenda",
+                    domain: "e-perpus-skenda.com",
+                    projectPath: "/home/user/Work/e-perpus-skenda",
+                    documentRoot: "/home/user/Work/e-perpus-skenda/public",
+                    projectType: "laravel",
+                    configPath: "/etc/httpd/conf.d/e-perpus-skenda.com.conf",
+                    owner: "managed by siteForge",
+                    importable: true,
+                    alreadyImported: false,
+                    hostsState: "managed",
+                    hostsOccurrences: 2,
+                    warnings: ["appears twice in /etc/hosts"],
+                  },
+                  {
+                    name: "ict-project",
+                    domain: "ict-project.test",
+                    projectPath: "/home/user/Work/ict-project",
+                    documentRoot: "/home/user/Work/ict-project",
+                    projectType: "php",
+                    configPath: "/etc/httpd/conf.d/ict-project.test.conf",
+                    owner: "hand written .test",
+                    importable: true,
+                    alreadyImported: false,
+                    hostsState: "unmanaged",
+                    hostsOccurrences: 1,
+                    warnings: [],
+                  },
+                ],
+                ignored: ["ssl.conf"],
+              },
+        import_siteforge_websites: () => ({ imported: [], skipped: [], failed: [] }),
+        get_environment_diagnostics: () => ({
+          host: hostInfo,
+          checks: [
+            { id: "apache-installed", label: "Apache httpd", status: "passed", detail: "httpd 2.4.71 is installed and enabled." },
+            { id: "apache-running", label: "Apache running", status: "passed", detail: "httpd.service is active (running)." },
+            { id: "php-fpm", label: "PHP-FPM", status: "passed", detail: "php-fpm 8.5.11 with the www pool socket." },
+            { id: "mariadb", label: "MariaDB", status: "warning", detail: "mariadb.service is installed but stopped.", remediation: "systemctl start mariadb.service" },
+            { id: "selinux", label: "SELinux", status: "passed", detail: "Enforcing — Servora sets contexts, never disables SELinux." },
+            { id: "helper", label: "Privileged helper", status: "failed", detail: "servora-helper was not found at /usr/libexec/servora-helper.", remediation: "sudo dnf install --refresh ./Servora-0.1.0-1.x86_64.rpm" },
+            { id: "hosts", label: "Hosts file", status: "passed", detail: "3 managed domains, 0 duplicates." },
+          ],
+          summary: { passed: 5, warnings: 1, failed: 1, notApplicable: 0, total: 7 },
+          generatedAtMs: Date.now(),
+        }),
+        get_environment_setup: () => ({
+          host: hostInfo,
+          components: [
+            { id: "apache-installed", label: "Apache HTTP Server", status: "passed", detail: "httpd 2.4.71", package: "httpd" },
+            { id: "php-installed", label: "PHP 8", status: "passed", detail: "PHP 8.5.11", package: "php" },
+            { id: "php-fpm", label: "PHP-FPM", status: "passed", detail: "php-fpm 8.5.11", package: "php-fpm" },
+            { id: "mariadb", label: "MariaDB", status: "passed", detail: "MariaDB 12.3.2", package: "mariadb-server" },
+            { id: "selinux", label: "SELinux tools", status: "passed", detail: "policycoreutils-python-utils present", package: "policycoreutils-python-utils" },
+            { id: "helper", label: "Servora helper", status: "failed", detail: "not installed", package: "servora" },
+          ],
+          ready: false,
+          generatedAtMs: Date.now(),
+        }),
+        validate_apache_configuration: () => ({
+          valid: true,
+          output: "Syntax OK",
+        }),
+        reload_apache: () => ({
+          operation: "reload-apache",
+          success: true,
+          steps: [],
+          warnings: [],
+        }),
+        get_site_paths: () => ({
+          configDir: "/home/user/.config/servora",
+          dataDir: "/home/user/.local/share/servora",
+          backupsDir: "/home/user/.local/share/servora/backups",
+          apacheConfDir: "/etc/httpd/conf.d",
+          hostsFile: "/etc/hosts",
+          helperPath: "/usr/libexec/servora-helper",
+          helperInstalled: false,
+        }),
         start_service: (args) => ({}, void args),
         "plugin:event|listen": () => 1,
         "plugin:event|unlisten": () => null,
+        "plugin:dialog|open": () => null,
+        "plugin:opener|open_url": () => null,
       };
 
       window.__TAURI_INTERNALS__ = {

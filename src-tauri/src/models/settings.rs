@@ -86,7 +86,8 @@ impl AppSettings {
 
     /// Strict validation used when settings arrive from the frontend.
     pub fn validate(&self) -> Result<(), String> {
-        if !(MIN_REFRESH_INTERVAL_MS..=MAX_REFRESH_INTERVAL_MS).contains(&self.refresh_interval_ms) {
+        if !(MIN_REFRESH_INTERVAL_MS..=MAX_REFRESH_INTERVAL_MS).contains(&self.refresh_interval_ms)
+        {
             return Err(format!(
                 "Refresh interval must be between {MIN_REFRESH_INTERVAL_MS} and {MAX_REFRESH_INTERVAL_MS} ms"
             ));
@@ -119,7 +120,10 @@ pub fn state_dir() -> PathBuf {
         return PathBuf::from(xdg).join("servora");
     }
     let home = std::env::var_os("HOME").unwrap_or_else(|| "/tmp".into());
-    PathBuf::from(home).join(".local").join("state").join("servora")
+    PathBuf::from(home)
+        .join(".local")
+        .join("state")
+        .join("servora")
 }
 
 /// Application metadata surfaced on the Settings page.
@@ -244,7 +248,10 @@ mod tests {
     #[test]
     fn config_path_is_xdg_compliant() {
         std::env::set_var("XDG_CONFIG_HOME", "/tmp/xdg-test");
-        assert_eq!(config_path(), PathBuf::from("/tmp/xdg-test/servora/config.json"));
+        assert_eq!(
+            config_path(),
+            PathBuf::from("/tmp/xdg-test/servora/config.json")
+        );
         std::env::remove_var("XDG_CONFIG_HOME");
         let fallback = config_path();
         assert!(fallback.ends_with(".config/servora/config.json"));

@@ -22,6 +22,18 @@ pub mod codes {
     pub const LOG_RETRIEVAL_FAILED: &str = "log_retrieval_failed";
     pub const CONFIG_ERROR: &str = "config_error";
     pub const INVALID_INPUT: &str = "invalid_input";
+    // Website manager
+    pub const INVALID_NAME: &str = "invalid_name";
+    pub const INVALID_DOMAIN: &str = "invalid_domain";
+    pub const INVALID_PATH: &str = "invalid_path";
+    pub const NOT_FOUND: &str = "not_found";
+    pub const DUPLICATE: &str = "duplicate";
+    pub const CONFLICT: &str = "conflict";
+    pub const STORAGE_ERROR: &str = "storage_error";
+    pub const HELPER_MISSING: &str = "helper_missing";
+    pub const HELPER_FAILED: &str = "helper_failed";
+    pub const APACHE_CONFIG_INVALID: &str = "apache_config_invalid";
+    pub const NOT_IMPLEMENTED_ON_PLATFORM: &str = "not_supported";
     pub const INTERNAL_ERROR: &str = "internal_error";
 }
 
@@ -96,11 +108,26 @@ pub enum AppError {
 
     #[error("Internal error: {0}")]
     Internal(String),
+
+    /// Error raised by `servora-core` with its own code and hint.
+    #[error("{message}")]
+    Site {
+        code: String,
+        message: String,
+        hint: Option<String>,
+    },
 }
 
 impl AppError {
     /// Stable machine readable code for the frontend and for logs.
-    pub fn code(&self) -> &'static str {
+    pub fn code(&self) -> String {
+        if let AppError::Site { code, .. } = self {
+            return code.clone();
+        }
+        self.static_code().to_string()
+    }
+
+    fn static_code(&self) -> &'static str {
         match self {
             AppError::UnknownService(_) => codes::UNKNOWN_SERVICE,
             AppError::ServiceNotInstalled(_) => codes::SERVICE_NOT_INSTALLED,
@@ -117,11 +144,15 @@ impl AppError {
             AppError::Config(_) => codes::CONFIG_ERROR,
             AppError::InvalidInput(_) => codes::INVALID_INPUT,
             AppError::Internal(_) => codes::INTERNAL_ERROR,
+            AppError::Site { .. } => codes::INTERNAL_ERROR,
         }
     }
 
     /// Actionable hint shown under the error message in the UI.
     pub fn hint(&self) -> Option<String> {
+        if let AppError::Site { hint, .. } = self {
+            return hint.clone();
+        }
         let hint = match self {
             AppError::ServiceNotInstalled(_) => {
                 "Install the package first, for example `sudo dnf install httpd php-fpm mariadb-server`."
@@ -217,5 +248,36 @@ mod tests {
     fn technical_errors_do_not_suggest_a_hint() {
         let payload = AppError::UnknownService("x".into()).to_payload();
         assert!(payload.hint.is_none());
+    }
+}
+
+impl From<servora_core::CoreError> for AppError {
+    fn from(value: servora_core::CoreError) -> Self {
+        AppError::Site {
+            code: value.code().to_string(),
+            message: value.to_string(),
+            hint: value.hint(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod site_error_tests {
+    use super::*;
+
+    #[test]
+    fn core_errors_keep_their_code_and_hint() {
+        let error = AppError::from(servora_core::CoreError::Duplicate("e-perpus".into()));
+        assert_eq!(error.code(), codes::DUPLICATE);
+        assert_eq!(error.to_payload().code, codes::DUPLICATE);
+        assert!(error.hint().is_some());
+    }
+
+    #[test]
+    fn service_errors_still_use_their_static_codes() {
+        assert_eq!(
+            AppError::PermissionDenied("httpd".into()).code(),
+            codes::PERMISSION_DENIED
+        );
     }
 }

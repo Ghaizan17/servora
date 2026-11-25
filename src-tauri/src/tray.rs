@@ -138,7 +138,11 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     builder = builder.icon(icon);
 
     builder.build(app)?;
-    app.manage(TrayMenu { httpd, php, mariadb });
+    app.manage(TrayMenu {
+        httpd,
+        php,
+        mariadb,
+    });
 
     logging::info("tray icon created");
     start_status_updater(app.clone());

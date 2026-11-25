@@ -45,9 +45,7 @@ pub fn load() -> AppSettings {
 
 /// Persist the settings atomically.
 pub fn save(settings: &AppSettings) -> AppResult<PathBuf> {
-    settings
-        .validate()
-        .map_err(AppError::Config)?;
+    settings.validate().map_err(AppError::Config)?;
     let path = config_path();
     write_atomic(&path, &settings)
 }
@@ -55,10 +53,7 @@ pub fn save(settings: &AppSettings) -> AppResult<PathBuf> {
 fn write_atomic(path: &Path, settings: &AppSettings) -> AppResult<PathBuf> {
     let directory = config_dir();
     fs::create_dir_all(&directory).map_err(|err| {
-        AppError::Config(format!(
-            "could not create {}: {err}",
-            directory.display()
-        ))
+        AppError::Config(format!("could not create {}: {err}", directory.display()))
     })?;
 
     let json = serde_json::to_string_pretty(settings)

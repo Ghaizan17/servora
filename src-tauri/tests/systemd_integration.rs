@@ -163,7 +163,10 @@ async fn stop_and_start_roundtrip() {
         .operate(service, ServiceOperation::Start)
         .await
         .expect("start");
-    assert!(started.state.is_running(), "mariadb should be running again");
+    assert!(
+        started.state.is_running(),
+        "mariadb should be running again"
+    );
     println!("started: {:?}/{}", started.state, started.sub_state);
 
     // Leave the machine exactly as we found it.

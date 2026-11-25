@@ -41,7 +41,10 @@ pub async fn get_services_status(
         Err(error) => {
             logging::warn(&format!("status refresh failed: {error}"));
             state.reset_client().await;
-            Ok(ServicesStatusResponse::degraded(error.to_payload(), now_ms()))
+            Ok(ServicesStatusResponse::degraded(
+                error.to_payload(),
+                now_ms(),
+            ))
         }
     }
 }
@@ -52,10 +55,7 @@ pub async fn get_service_status(
     state: State<'_, AppState>,
 ) -> Result<ServiceStatus, ErrorPayload> {
     let service = authorize_service(&service).map_err(|error| error.to_payload())?;
-    let client = state
-        .client()
-        .await
-        .map_err(|error| error.to_payload())?;
+    let client = state.client().await.map_err(|error| error.to_payload())?;
     client
         .status(service)
         .await
@@ -123,10 +123,7 @@ async fn run_single(
             })
         }
         Err(error) => {
-            logging::warn(&format!(
-                "{operation} {} failed: {error}",
-                service.unit()
-            ));
+            logging::warn(&format!("{operation} {} failed: {error}", service.unit()));
             if matches!(
                 error,
                 AppError::DbusUnavailable(_) | AppError::SystemdUnavailable
@@ -185,10 +182,7 @@ pub async fn run_batch<R: tauri::Runtime>(
     })
     .await;
 
-    logging::info(&format!(
-        "batch {operation} finished: {}",
-        result.summary()
-    ));
+    logging::info(&format!("batch {operation} finished: {}", result.summary()));
 
     Ok(result)
 }

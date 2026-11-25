@@ -10,8 +10,12 @@ import { api, isTauri } from "./lib/ipc.js";
 import { icons } from "./lib/icons.js";
 import { applyTheme, getSettings, loadSettings } from "./lib/store.js";
 import { Dashboard } from "./pages/Dashboard.js";
+import { Websites } from "./pages/Websites.js";
+import { Domains } from "./pages/Domains.js";
 import { Logs } from "./pages/Logs.js";
+import { Diagnostics } from "./pages/Diagnostics.js";
 import { Settings } from "./pages/Settings.js";
+import { About } from "./pages/About.js";
 import { toastError } from "./components/toast.js";
 import { escapeHtml } from "./lib/format.js";
 
@@ -19,25 +23,62 @@ const ROUTES = [
   {
     id: "dashboard",
     label: "Dashboard",
+    group: "Workspace",
     subtitle: "Control your local development stack.",
     icon: icons.dashboard,
     create: Dashboard,
   },
   {
+    id: "websites",
+    label: "Websites",
+    group: "Workspace",
+    subtitle: "Projects served by Apache on this machine.",
+    icon: icons.globe,
+    create: Websites,
+  },
+  {
+    id: "domains",
+    label: "Domains",
+    group: "Workspace",
+    subtitle: "Local domains and the hosts file Servora manages.",
+    icon: icons.external,
+    create: Domains,
+  },
+  {
     id: "logs",
     label: "Logs",
+    group: "Workspace",
     subtitle: "Journal entries for the managed units.",
     icon: icons.logs,
     create: Logs,
   },
   {
+    id: "diagnostics",
+    label: "Diagnostics",
+    group: "System",
+    subtitle: "Health checks and environment setup.",
+    icon: icons.stethoscope,
+    create: Diagnostics,
+  },
+  {
     id: "settings",
     label: "Settings",
+    group: "System",
     subtitle: "Preferences, security and application info.",
     icon: icons.settings,
     create: Settings,
   },
+  {
+    id: "about",
+    label: "About",
+    group: "System",
+    subtitle: "How Servora stays unprivileged, and where it keeps data.",
+    icon: icons.info,
+    create: About,
+  },
 ];
+
+const NAV_GROUPS = ["Workspace", "System"];
 
 function buildShell() {
   const app = document.getElementById("app");
@@ -48,17 +89,23 @@ function buildShell() {
           <img src="/favicon.png" alt="" class="h-9 w-9 rounded-xl border border-line object-cover" />
           <div class="min-w-0">
             <p class="text-[15px] font-semibold leading-tight tracking-tight text-ink">Servora</p>
-            <p class="truncate text-[10.5px] uppercase tracking-[0.14em] text-muted">Service Manager</p>
+            <p class="truncate text-[10.5px] uppercase tracking-[0.14em] text-muted">Environment</p>
           </div>
         </div>
 
         <nav class="flex flex-col gap-1" aria-label="Main navigation">
-          ${ROUTES.map(
-            (route) => `
-            <button class="nav-item" data-route="${route.id}">
-              ${route.icon(16)}
-              <span>${route.label}</span>
-            </button>`,
+          ${NAV_GROUPS.map(
+            (group) => `
+            <p class="mt-2 px-3 pb-1 text-[10px] font-semibold tracking-[0.14em] text-muted uppercase">${group}</p>
+            ${ROUTES.filter((route) => route.group === group)
+              .map(
+                (route) => `
+              <button class="nav-item" data-route="${route.id}" title="${escapeHtml(route.subtitle)}">
+                ${route.icon(16)}
+                <span>${route.label}</span>
+              </button>`,
+              )
+              .join("")}`,
           ).join("")}
         </nav>
 

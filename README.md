@@ -1,14 +1,24 @@
 # Servora
 
-**Local Development Service Manager** — *Control your local development stack.*
+**Local Development Environment Manager** — *Your Fedora PHP stack, one window.*
 
-Servora is a lightweight Linux desktop application for managing the local
-development services that power a PHP stack — **Apache HTTP Server**,
-**PHP-FPM** and **MariaDB** — from one clean window, without a terminal and
-without pretending to be XAMPP. It drives the real systemd units Fedora already
-ships, so anything Servora does is exactly what `systemctl` would do.
+Servora is a lightweight Linux desktop application for running the services that
+power a PHP stack — **Apache HTTP Server**, **PHP-FPM** and **MariaDB** — and for
+managing the local websites served by them. It drives the real systemd units
+Fedora already ships and writes real Apache configuration, so anything Servora
+does is exactly what `systemctl` and `httpd.conf` would do.
+
+The website manager replaces hand-editing VirtualHosts and `/etc/hosts`: point it
+at a project folder and it detects the framework, picks the document root, writes
+the VirtualHost, adds the domain, sets ACLs and SELinux contexts, validates the
+configuration and reloads Apache — as one transaction that rolls back if any step
+fails.
 
 ![Servora dashboard](docs/screenshots/dashboard.png)
+
+| Websites | Diagnostics |
+| --- | --- |
+| ![Website manager](docs/screenshots/websites.png) | ![Diagnostics](docs/screenshots/diagnostics.png) |
 
 > Screenshots are captured from the real interface using the development preview
 > harness (`dev/preview.html`), which renders the production frontend against a
@@ -20,6 +30,22 @@ ships, so anything Servora does is exactly what `systemctl` would do.
 
 - **Three managed services** — `httpd.service`, `php-fpm.service`, `mariadb.service`.
   Nothing else can be addressed, ever.
+- **Website manager** — create, edit, rename, remove and inspect websites: Apache
+  VirtualHost generation, `/etc/hosts` entries inside a marked block, ACLs,
+  SELinux file contexts, search/filter/sort, and a details panel that reconciles
+  metadata with the live configuration.
+- **Project detection** — Laravel, WordPress, generic PHP and unknown projects,
+  with automatic document-root discovery and the writable directories each
+  framework needs.
+- **Transactional changes** — write → hosts → ACL → SELinux → `apachectl
+  configtest` → reload, with file snapshots and rollback on failure.
+- **siteForge migration** — detects existing sites (including hand written `.test`
+  files), previews what it found, imports only what you tick, keeps backups, never
+  deletes anything, and has no runtime dependency on siteForge.
+- **Diagnostics and environment setup** — 14 health checks with remediation
+  commands, plus the exact `dnf install` line for anything missing.
+- **Domain manager** — every managed domain with its site, address and
+  line number, and warnings for entries added by other tools.
 - **Live systemd state** — Active / Inactive / Activating / Deactivating / Failed / Unknown,
   read from systemd over D-Bus, never cached as truth.
 - **Per-service control** — Start, Stop, Restart with real Polkit authorization.
@@ -147,6 +173,18 @@ Closing the window hides Servora to the tray when *Minimize to tray on close*
 is enabled. **Quit** from the tray menu exits the application and **never stops
 your services** — systemd keeps them running.
 
+## Website manager
+
+See [docs/WEBSITE_MANAGER.md](docs/WEBSITE_MANAGER.md) for the full workflow:
+project detection, domain rules, what removal deletes and what it keeps, and how
+the siteForge import handles legacy files.
+
+Writing to `/etc` needs root, so those steps run in a small helper
+(`/usr/libexec/servora-helper`) started through `pkexec` after Polkit authorizes
+`dev.servora.app.manage-sites`. The helper contains no business logic: it replays
+a plan of typed steps produced by the Rust core and refuses any path outside
+`/etc/httpd/conf.d` and `/etc/hosts`.
+
 ## Security architecture
 
 Servora is designed so the GUI itself has no privileges.
@@ -172,9 +210,23 @@ Servora is designed so the GUI itself has no privileges.
   unit until it reaches a settled state and reports the *observed* state, so a
   "success" is never assumed.
 
+- **Website writes go through one audited helper.** `servora-helper` is not
+  setuid; it is reachable only through `pkexec`, path-pinned by the Polkit action,
+  accepts a JSON plan on stdin, refuses oversized or empty plans and any path
+  outside `/etc/httpd/conf.d` and `/etc/hosts`, and can only run `setfacl`,
+  `getfacl`, `semanage`, `restorecon`, `apachectl` and `systemctl` with fixed
+  arguments. It ignores `SERVORA_TEST_ROOT`, so an environment variable cannot
+  redirect a root write.
+- **Validation lives in Rust.** Domains, names, project paths and document roots
+  are validated in `servora-core` before a plan exists; the UI only pre-fills and
+  displays messages.
+
 `docs/polkit/49-servora-managed-units.rules` is an optional, equally strict
 rule that documents the managed units. It is **not** installed by the package and
-does not loosen the default policy.
+does not loosen the default policy. The installed policy is
+`docs/polkit/dev.servora.app.manage-sites.policy`.
+
+Read [docs/SECURITY.md](docs/SECURITY.md) for the full threat model.
 
 ## Configuration
 
@@ -238,7 +290,7 @@ servora/
 │   ├── main.js                 # shell + router
 │   ├── lib/                    # ipc, store, formatting, icons
 │   ├── components/             # toast, shared UI
-│   ├── pages/                  # Dashboard, Logs, Settings
+│   ├── pages/                  # Dashboard, Websites, Domains, Logs,
 │   └── styles/app.css          # Tailwind 4 + design tokens
 ├── src-tauri/
 │   ├── src/

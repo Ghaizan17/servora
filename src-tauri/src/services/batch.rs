@@ -82,9 +82,17 @@ where
                     // Being already started/stopped is not a batch failure.
                     success: already_in_target_state,
                     message: if already_in_target_state {
-                        format!("{} was already in the requested state", service.display_name())
+                        format!(
+                            "{} was already in the requested state",
+                            service.display_name()
+                        )
                     } else {
-                        format!("{} could not be {}: {}", service.display_name(), operation.past_tense(), error)
+                        format!(
+                            "{} could not be {}: {}",
+                            service.display_name(),
+                            operation.past_tense(),
+                            error
+                        )
                     },
                     status,
                     error: if already_in_target_state {
@@ -154,7 +162,10 @@ mod tests {
             assert_eq!(planned.len(), ServiceId::ALL.len());
             for service in ServiceId::ALL {
                 assert_eq!(
-                    planned.iter().filter(|candidate| **candidate == service).count(),
+                    planned
+                        .iter()
+                        .filter(|candidate| **candidate == service)
+                        .count(),
                     1,
                     "{service} must appear exactly once in the {operation} plan"
                 );
@@ -180,7 +191,10 @@ mod tests {
             message: String::new(),
             duration_ms: 1,
         };
-        let results = vec![make(ServiceId::MariaDb, true), make(ServiceId::PhpFpm, false)];
+        let results = vec![
+            make(ServiceId::MariaDb, true),
+            make(ServiceId::PhpFpm, false),
+        ];
         let succeeded = results.iter().filter(|r| r.success).count();
         let failed = results.len() - succeeded;
         let batch = BatchOperationResult {

@@ -46,7 +46,7 @@
     ],
     "category": "DeveloperTool",
     "shortDescription": "Local development service manager",
-    "longDescription": "Servora is a lightweight desktop application for managing local development services (Apache HTTP Server, PHP-FPM and MariaDB) through systemd and Polkit.",
+    "longDescription": "Servora is a lightweight desktop application for managing local development environments on Fedora: Apache HTTP Server, PHP-FPM and MariaDB through systemd and Polkit, plus a website manager that writes Apache VirtualHosts, hosts entries, ACLs and SELinux file contexts.",
     "license": "MIT",
     "publisher": "Servora",
     "homepage": "https://github.com/Ghaizan17/servora",
@@ -55,8 +55,14 @@
         "depends": [
           "webkit2gtk4.1",
           "libayatana-appindicator-gtk3"
-        ]
+        ],
+        "postInstallScript": "scripts/postinstall.sh",
+        "preRemoveScript": "scripts/preremove.sh"
       }
+    },
+    "resources": {
+      "target/release/servora-helper": "servora-helper",
+      "../docs/polkit/dev.servora.app.manage-sites.policy": "dev.servora.app.manage-sites.policy"
     }
   }
 }

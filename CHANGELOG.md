@@ -6,6 +6,38 @@ All notable changes to Servora are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Website Manager: create, edit, rename, remove and inspect local Apache sites
+  with search, filter, sort and a details panel.
+- Standalone Rust core (`crates/servora-core`) owning domain validation, hosts
+  rendering, VirtualHost rendering/parsing, project detection, ACL and SELinux
+  planning, transactional execution with rollback, diagnostics and migration.
+- Privileged helper (`crates/servora-helper`) invoked through `pkexec`, with a
+  Polkit action (`dev.servora.app.manage-sites`) and strict path restrictions.
+- siteForge migration: scan, preview, selective import, migration log, backups,
+  idempotent re-import and no runtime dependency on siteForge.
+- Domain Manager page and Diagnostics page (health checks + environment matrix
+  with `dnf install` guidance).
+- Transactional website changes: `apachectl configtest` before every reload and
+  snapshot-based rollback of the files a failing plan already wrote.
+- Native directory picker, focus-trapping modal dialogs, and About page.
+
+### Changed
+
+- Navigation is grouped into *Workspace* (Dashboard, Websites, Domains, Logs) and
+  *System* (Diagnostics, Settings, About); the sidebar subtitle is now
+  "Environment".
+- Errors carry the core's stable codes and remediation hints end to end.
+
+### Security
+
+- The only privileged component is a non-setuid helper that replays typed steps,
+  refuses paths outside `/etc/httpd/conf.d` and `/etc/hosts`, and ignores
+  `SERVORA_TEST_ROOT`.
+- SELinux is never disabled; Servora only adds file contexts and runs
+  `restorecon` on the paths it manages.
+
 ## [0.1.0] — 2026-11-25
 
 First working release.

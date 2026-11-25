@@ -149,7 +149,9 @@ impl SystemdClient {
         match operation {
             ServiceOperation::Start => {
                 if before.state.is_running() || before.state == ServiceState::Activating {
-                    return Err(AppError::ServiceAlreadyActive(service.display_name().into()));
+                    return Err(AppError::ServiceAlreadyActive(
+                        service.display_name().into(),
+                    ));
                 }
                 if before.state == ServiceState::Deactivating {
                     return Err(AppError::OperationFailed(
@@ -186,15 +188,18 @@ impl SystemdClient {
 
     /// Invoke a `org.freedesktop.systemd1.Manager` method that may require
     /// Polkit approval. All three job methods return the job object path.
-    async fn call_manager<B>(&self, method: &str, body: &B, unit: &str) -> AppResult<OwnedObjectPath>
+    async fn call_manager<B>(
+        &self,
+        method: &str,
+        body: &B,
+        unit: &str,
+    ) -> AppResult<OwnedObjectPath>
     where
         B: serde::Serialize + zbus::zvariant::DynamicType,
     {
-        let call = self.manager.call_with_flags(
-            method,
-            MethodFlags::AllowInteractiveAuth.into(),
-            body,
-        );
+        let call =
+            self.manager
+                .call_with_flags(method, MethodFlags::AllowInteractiveAuth.into(), body);
         match tokio::time::timeout(AUTHORIZATION_TIMEOUT, call).await {
             Ok(Ok(Some(path))) => Ok(path),
             Ok(Ok(None)) => Err(AppError::Internal(format!(
@@ -205,7 +210,10 @@ impl SystemdClient {
         }
     }
 
-    async fn unit_properties(&self, path: &OwnedObjectPath) -> AppResult<HashMap<String, OwnedValue>> {
+    async fn unit_properties(
+        &self,
+        path: &OwnedObjectPath,
+    ) -> AppResult<HashMap<String, OwnedValue>> {
         let call = self.connection.call_method(
             Some(SYSTEMD_DESTINATION),
             path.as_str(),
@@ -320,8 +328,7 @@ fn classify_dbus_error(unit: &str, err: &zbus::Error) -> AppError {
             | "org.freedesktop.DBus.Error.InteractiveAuthorizationRequired" => {
                 if lower.contains("cancel")
                     || lower.contains("dismiss")
-                    || lower.contains("not authorized")
-                        && lower.contains("interactive")
+                    || lower.contains("not authorized") && lower.contains("interactive")
                 {
                     AppError::AuthorizationCancelled(unit.into())
                 } else if name == "org.freedesktop.DBus.Error.InteractiveAuthorizationRequired" {
@@ -335,9 +342,7 @@ fn classify_dbus_error(unit: &str, err: &zbus::Error) -> AppError {
             | "org.freedesktop.DBus.Error.TimedOut" => AppError::OperationTimeout(unit.into()),
             "org.freedesktop.DBus.Error.Disconnected"
             | "org.freedesktop.DBus.Error.NoServer"
-            | "org.freedesktop.DBus.Error.ConnectionClosed" => {
-                AppError::DbusUnavailable(detail)
-            }
+            | "org.freedesktop.DBus.Error.ConnectionClosed" => AppError::DbusUnavailable(detail),
             other => AppError::OperationFailed(unit.into(), format!("{other}: {detail}")),
         };
     }

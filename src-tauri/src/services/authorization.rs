@@ -88,7 +88,10 @@ mod tests {
 
     #[test]
     fn operation_allowlist_is_enforced() {
-        assert_eq!(authorize_operation("start").unwrap(), ServiceOperation::Start);
+        assert_eq!(
+            authorize_operation("start").unwrap(),
+            ServiceOperation::Start
+        );
         assert_eq!(authorize_operation("STOP").unwrap(), ServiceOperation::Stop);
         assert_eq!(
             authorize_operation("restart").unwrap(),

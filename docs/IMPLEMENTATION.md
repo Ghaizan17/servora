@@ -91,10 +91,16 @@ enabled.
 
 ## Notes and decisions
 
-- **No privileged helper.** Servora uses systemd's own D-Bus API, so systemd is
-  the authorization boundary and there is no setuid/setcap binary to audit or
-  maintain. `docs/polkit/49-servora-managed-units.rules` is optional and no
-  stricter/looser than the default policy.
+- **Service control has no privileged helper.** Servora uses systemd's own D-Bus
+  API, so systemd is the authorization boundary and there is no setuid/setcap
+  binary for services. `docs/polkit/49-servora-managed-units.rules` is optional
+  and no stricter/looser than the default policy.
+- **Website changes do use one small helper.** Writing `/etc/httpd/conf.d`,
+  `/etc/hosts`, ACLs and SELinux contexts requires root, so `servora-helper`
+  runs through `pkexec` after Polkit authorizes
+  `dev.servora.app.manage-sites`. It is not setuid, accepts a JSON plan on
+  stdin, refuses any path outside `/etc/httpd/conf.d` and `/etc/hosts`, and
+  every command it may run is compiled into `servora-core` (no shell).
 - **No frontend framework.** Vanilla ES modules keep the bundle ~45 kB and avoid
   a build-time dependency on a component runtime.
 - **Batch order** is encoded in `ServiceId::START_ALL_ORDER` /
@@ -110,6 +116,59 @@ enabled.
   sets that flag (`Proxy::call_with_flags`), which lets the desktop show its
   password dialog instead of Servora silently failing.
 
+## Phase 9 — Standalone website manager
+
+Independent of the tool it replaces: Servora no longer calls `siteForge` at
+runtime. Its behaviour was migrated into `crates/servora-core` after the audit in
+[`SITEFORGE_MIGRATION_AUDIT.md`](SITEFORGE_MIGRATION_AUDIT.md).
+
+- [x] Workspace split: `servora-core` (all business logic, 88 tests) and
+      `servora-helper` (privileged executor, 5 tests)
+- [x] Domain validation (RFC 1123 subset, no scheme/port/path/IP, 253/63 limits)
+- [x] Hosts file manager with a marked block, idempotent add/remove, duplicate
+      detection and preservation of foreign lines
+- [x] VirtualHost renderer/parser with ownership classification
+      (Servora / siteForge / hand written `.test` / external)
+- [x] Project detection: Laravel, WordPress, generic PHP, unknown, plus document
+      root discovery and the writable directories each type needs
+- [x] Permission planner (`setfacl` arguments) and SELinux planner
+      (`semanage fcontext` + `restorecon`), never disabling SELinux
+- [x] Transactional planner: write → hosts → ACL → SELinux → `apachectl
+      configtest` → reload, with file snapshots and rollback on any failure
+- [x] `apachectl configtest` always runs before a reload; backup of the previous
+      configuration is kept under `~/.local/share/servora/backups`
+- [x] Website metadata store (`websites.json`) reconciled with the live Apache
+      configuration on every read
+- [x] Tauri commands: `get_websites`, `create_website`, `update_website`,
+      `rename_website`, `remove_website`, `detect_project_type`,
+      `detect_document_root`, `validate_domain`, `check_domain_conflicts`,
+      `get_managed_domains`, `get_virtualhost_status`,
+      `validate_apache_configuration`, `reload_apache`,
+      `get_environment_diagnostics`, `get_environment_setup`,
+      `preview_siteforge_migration`, `import_siteforge_websites`, `get_site_paths`
+- [x] Website Manager GUI (search, filter, sort, details, create, edit, rename,
+      remove) with the native folder picker
+- [x] Domain Manager GUI reading the managed block in `/etc/hosts`
+- [x] Diagnostics GUI (health checks + environment matrix with package names)
+- [x] siteForge migration: detection, preview dialog, selective import, migration
+      log (`migrations.json`), never deleting anything, idempotent re-import
+- [x] Operations serialised behind one lock so two plans cannot interleave
+- [ ] Live import of the two siteForge sites on this machine (needs the Polkit
+      password; the flow is exercised end-to-end by the core integration tests)
+
+### Core test inventory
+
+| Crate | Tests | Command |
+| --- | --- | --- |
+| `servora-core` | 88 | `cargo test -p servora-core` |
+| `servora-helper` | 5 | `cargo test -p servora-helper` |
+| `servora` (Tauri app) | 62 | `cargo test --lib` |
+| live systemd integration (ignored by default) | 9 | `SERVORA_ALLOW_CONTROL_TESTS=1 cargo test --release --test systemd_integration -- --ignored --test-threads=1` |
+
+The core suite includes a full create → list → remove cycle and a rollback test
+driven by an injected failing step, both against a temporary filesystem root
+(`SERVORA_TEST_ROOT`), so the developer machine is never modified.
+
 ## Verification log
 
 | Check | Command | Result |
@@ -121,3 +180,8 @@ enabled.
 | Live control | `SERVORA_ALLOW_CONTROL_TESTS=1 cargo test --test systemd_integration -- --ignored` | 9 passed: restart and stop/start roundtrip, `Connection:Inactive` → `Active/running`, typed `already inactive` error, state restored |
 | Polkit interactive auth | D-Bus probe with `AllowInteractiveAuth` | job accepted through the desktop authentication agent |
 | App launch | `./target/debug/servora` | window shown, tray created, log file written |
+| Core suite | `cargo test -p servora-core` | 88 passed |
+| Helper suite | `cargo test -p servora-helper` | 5 passed |
+| Helper safety | `servora-helper --apply-plan` with `/etc/passwd` | rejected, nothing written |
+| Workspace suite | `cargo test --workspace` | 155 passed (62 app + 88 core + 5 helper) |
+| Website pages | preview harness + DOM dump | list, domains table and diagnostics render with mocked bridge data |

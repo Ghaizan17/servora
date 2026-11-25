@@ -57,6 +57,30 @@ export const api = {
   getAppInfo: () => call("get_app_info"),
   getAuthorizationInfo: () => call("get_authorization_info"),
   getSettingsLimits: () => call("get_settings_limits"),
+
+  // Website manager
+  getWebsites: () => call("get_websites"),
+  getWebsite: (website) => call("get_website", { website }),
+  getWebsiteHistory: () => call("get_website_history"),
+  getVirtualhostStatus: (domain) => call("get_virtualhost_status", { domain }),
+  detectProject: (path) => call("detect_project_type", { request: { path } }),
+  validateDomain: (domain) => call("validate_domain", { domain }),
+  checkDomainConflicts: (request, website) =>
+    call("check_domain_conflicts", { request, website }),
+  createWebsite: (request) => call("create_website", { request }),
+  updateWebsite: (website, request) => call("update_website", { website, request }),
+  renameWebsite: (website, domain) =>
+    call("rename_website", { request: { website, domain } }),
+  removeWebsite: (website) => call("remove_website", { website }),
+  getManagedDomains: () => call("get_managed_domains"),
+  previewMigration: () => call("preview_siteforge_migration"),
+  importWebsites: (domains, all = false) =>
+    call("import_siteforge_websites", { request: { domains, all } }),
+  getDiagnostics: () => call("get_environment_diagnostics"),
+  getEnvironment: () => call("get_environment_setup"),
+  validateApache: () => call("validate_apache_configuration"),
+  reloadApache: () => call("reload_apache"),
+  getSitePaths: () => call("get_site_paths"),
 };
 
 /** Batch progress events emitted by the Rust backend. */

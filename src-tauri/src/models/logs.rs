@@ -167,10 +167,7 @@ mod tests {
         );
         assert_eq!(entry.timestamp.as_deref(), Some("2026-05-01T10:20:30+0200"));
         assert_eq!(entry.ident.as_deref(), Some("httpd"));
-        assert_eq!(
-            entry.message,
-            "AH00094: Command line: '/usr/sbin/httpd'"
-        );
+        assert_eq!(entry.message, "AH00094: Command line: '/usr/sbin/httpd'");
     }
 
     #[test]

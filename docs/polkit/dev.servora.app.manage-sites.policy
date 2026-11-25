@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  Servora website manager authorization.
+
+  The GUI never runs as root. When it needs to write an Apache VirtualHost, an
+  /etc/hosts entry, an ACL or an SELinux file context, it runs
+  /usr/libexec/servora-helper through pkexec. The helper only accepts plans that
+  stay inside /etc/httpd/conf.d and /etc/hosts and only runs commands that are
+  compiled into servora-core — there is no shell and no free-form command.
+
+  auth_admin_keep lets one authorization cover a short burst of steps so a single
+  create/remove does not ask for the password many times.
+-->
+<policyconfig>
+  <vendor>Servora</vendor>
+  <vendor_url>https://github.com/Ghaizan17/servora</vendor_url>
+
+  <action id="dev.servora.app.manage-sites">
+    <description>Manage local website configurations</description>
+    <message>Authentication is required to write Apache configuration, hosts entries and file permissions for Servora websites</message>
+    <icon_name>servora</icon_name>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/servora-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>
