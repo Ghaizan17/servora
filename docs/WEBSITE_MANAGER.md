@@ -67,6 +67,20 @@ removed inside the managed block only — foreign lines are never touched.
 It keeps your project files, databases, uploads and backups. The confirmation
 dialog lists exactly this before anything runs.
 
+## Recovered websites
+
+`websites.json` is a cache, not the source of truth. Every `# Managed by Servora`
+VirtualHost carries the website name, project path and type in its header, so
+Servora rebuilds the record when it is missing — after a profile reset, a restored
+home directory, or a manual `rm -rf ~/.local/share/servora`. Those entries show a
+**recovered** badge and `Recovered from the live configuration` in the details
+panel, and a `recover` line appears in the history.
+
+This is why the Websites and Domains pages always agree: both read paths call the
+same reconciliation before building their response. A managed hosts line whose
+website record and configuration are both gone is reported on the Domains page as
+a domain pointing at a website Servora no longer knows.
+
 ## Status badges
 
 | Badge | Meaning |

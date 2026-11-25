@@ -101,6 +101,33 @@ export function Domains() {
       body.append(table);
     }
 
+    // A managed domain whose website no longer exists (the record was deleted but
+    // the configuration was left behind): say so instead of listing it silently.
+    const knownIds = new Set(websites.map((site) => site.websiteId));
+    const knownNames = new Set(websites.map((site) => site.website));
+    const orphans = domains.filter(
+      (entry) =>
+        entry.managed &&
+        entry.websiteId &&
+        !knownIds.has(entry.websiteId) &&
+        !knownNames.has(entry.website),
+    );
+    if (orphans.length) {
+      const warning = document.createElement("div");
+      warning.className =
+        "mt-4 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-[12px] text-warn";
+      warning.innerHTML = `
+        <p class="font-medium">These domains point at a website Servora no longer knows</p>
+        <ul class="mt-1.5 grid gap-1 font-mono text-[11.5px]">
+          ${orphans
+            .map((entry) => `<li>${escapeHtml(entry.domain)} → ${escapeHtml(entry.website ?? "—")}</li>`)
+            .join("")}
+        </ul>
+        <p class="mt-2 text-[11.5px] text-warn/80">Create the website again, or delete the line from your hosts file.</p>
+      `;
+      body.append(warning);
+    }
+
     // Websites whose domain is not (or wrongly) in the hosts file.
     const missing = websites.filter(
       (site) => !domains.some((entry) => entry.domain === site.domain),

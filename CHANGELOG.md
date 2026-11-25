@@ -4,6 +4,29 @@ All notable changes to Servora are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-11-25
+
+### Fixed
+
+- The Websites page could be empty while the Domain manager still listed the
+  domains. `websites.json` had been removed (profile reset, restored home,
+  `rm -rf ~/.local/share/servora`) while the VirtualHosts and hosts lines stayed,
+  and the website list only read that file. The list now reconciles with the live
+  configuration: every `# Managed by Servora` VirtualHost without a stored record
+  is adopted back, marked `recovered`, and written into the metadata again with a
+  `recover` entry in the history.
+- Reading the domain manager performs the same reconciliation, so both pages
+  always agree. A managed hosts line whose website no longer exists is reported as
+  a domain pointing at an unknown website instead of being listed silently.
+
+### Added
+
+- `servora-core::recover` rebuilds `Website` records from the marker header and
+  the parsed VirtualHost (name, project path, document root, type), ignoring
+  configurations owned by other tools.
+- `WebsiteStore::upsert` and `WebsiteOrigin::Recovered`; the details panel and the
+  list badge say "recovered" with an explanatory tooltip.
+
 ## [0.1.3] - 2026-11-25
 
 ### Changed

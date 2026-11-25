@@ -24,6 +24,7 @@ pub mod operations;
 pub mod permissions;
 pub mod plan;
 pub mod project;
+pub mod recover;
 pub mod selinux;
 pub mod storage;
 pub mod virtualhost;

@@ -31,6 +31,28 @@ const SORTS = [
   { id: "type", label: "Type" },
 ];
 
+const ORIGIN_LABELS = {
+  created: "Created in Servora",
+  importedSiteForge: "Imported from siteForge",
+  importedLegacy: "Imported from a legacy VirtualHost",
+  recovered: "Recovered from the live configuration",
+};
+
+function originLabel(origin) {
+  return ORIGIN_LABELS[origin] ?? origin ?? "Created in Servora";
+}
+
+function originBadge(origin) {
+  if (!origin || origin === "created") return "";
+  const text =
+    origin === "importedSiteForge" ? "siteForge" : origin === "recovered" ? "recovered" : "legacy";
+  const title =
+    origin === "recovered"
+      ? "Rebuilt from its VirtualHost because the stored record was missing"
+      : "Imported instead of created here";
+  return `<span class="badge" title="${title}">${text}</span>`;
+}
+
 export function Websites() {
   const element = document.createElement("div");
   element.className = "flex min-h-0 flex-1 flex-col gap-4";
@@ -112,7 +134,7 @@ export function Websites() {
           <h3 class="truncate text-[13.5px] font-semibold text-ink">${escapeHtml(website.name)}</h3>
           ${statusBadge(website.state)}
           <span class="badge">${escapeHtml(website.projectType)}</span>
-          ${website.origin && website.origin !== "created" ? `<span class="badge" title="Imported instead of created here">${website.origin === "importedSiteForge" ? "siteForge" : "legacy"}</span>` : ""}
+          ${originBadge(website.origin)}
         </div>
         <div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] text-muted">
           <a href="${escapeHtml(website.url)}" data-role="open" class="font-mono text-accent hover:underline">${escapeHtml(website.domain)}</a>
@@ -350,7 +372,7 @@ export function Websites() {
       ["Project", website.projectPath],
       ["Document root", website.documentRoot],
       ["Project type", website.projectType],
-      ["Origin", website.origin],
+      ["Origin", originLabel(website.origin)],
       ["Apache config", website.status.configPath],
       ["Config owner", website.status.configOwner],
       ["Hosts entry", website.status.hostsState.state],

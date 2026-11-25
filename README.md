@@ -39,6 +39,9 @@ fails.
   VirtualHost generation, `/etc/hosts` entries inside a marked block, ACLs,
   SELinux file contexts, search/filter/sort, and a details panel that reconciles
   metadata with the live configuration.
+- **Self-healing metadata** — a Servora VirtualHost is enough to rebuild its
+  website record, so the Websites page never disagrees with the Domain manager
+  after a profile reset.
 - **Project detection** — Laravel, WordPress, generic PHP and unknown projects,
   with automatic document-root discovery and the writable directories each
   framework needs.

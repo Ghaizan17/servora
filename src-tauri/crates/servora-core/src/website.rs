@@ -20,6 +20,9 @@ pub enum WebsiteOrigin {
     Created,
     ImportedSiteForge,
     ImportedLegacy,
+    /// Rebuilt from a `# Managed by Servora` VirtualHost when the stored record
+    /// was missing.
+    Recovered,
 }
 
 impl WebsiteOrigin {
@@ -28,6 +31,7 @@ impl WebsiteOrigin {
             WebsiteOrigin::Created => "created in Servora",
             WebsiteOrigin::ImportedSiteForge => "imported from siteForge",
             WebsiteOrigin::ImportedLegacy => "imported from a legacy VirtualHost",
+            WebsiteOrigin::Recovered => "recovered from the live configuration",
         }
     }
 }
@@ -306,6 +310,30 @@ impl WebsiteStore {
         self.document
             .websites
             .sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
+        Ok(())
+    }
+
+    /// Insert the website, or overwrite the record with the same id.
+    ///
+    /// Used when reconciling: a recovered site must never collide with a record
+    /// that is already there.
+    pub fn upsert(&mut self, website: Website) -> CoreResult<()> {
+        match self
+            .document
+            .websites
+            .iter()
+            .position(|existing| existing.id == website.id)
+        {
+            Some(position) => self.document.websites[position] = website,
+            None => {
+                if let Some(other) = self.by_domain(&website.domain) {
+                    if other.id != website.id {
+                        return Err(CoreError::Duplicate(website.domain));
+                    }
+                }
+                self.document.websites.push(website);
+            }
+        }
         Ok(())
     }
 

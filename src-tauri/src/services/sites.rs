@@ -145,6 +145,56 @@ impl SiteService {
         Ok(WebsiteStore::load(&self.paths.websites_file())?)
     }
 
+    /// Merge the stored website records with the Servora configurations that
+    /// exist on disk.
+    ///
+    /// `websites.json` is a cache: it can be missing after a profile reset even
+    /// though Apache still serves the sites, which used to leave the Websites page
+    /// empty while the Domain manager listed the domains. Every
+    /// `# Managed by Servora` VirtualHost without a stored record is adopted back
+    /// with `origin: recovered`, so the two pages agree again.
+    pub fn reconcile(&self) -> AppResult<usize> {
+        let mut store = self.store()?;
+        let recovered = servora_core::recover::recover_sites(&self.paths)?;
+        let mut adopted = Vec::new();
+
+        for candidate in recovered {
+            let site = candidate.website;
+            let known = store
+                .websites()
+                .iter()
+                .any(|existing| existing.id == site.id || existing.domain == site.domain);
+            if known {
+                continue;
+            }
+            store.upsert(site.clone());
+            adopted.push(site);
+        }
+
+        if adopted.is_empty() {
+            return Ok(0);
+        }
+
+        store.save()?;
+        for site in &adopted {
+            log::info!(
+                "adopted {} from {} (metadata was missing)",
+                site.domain,
+                site.project_path
+            );
+            self.append_history(
+                "recover",
+                &site.name,
+                true,
+                &format!(
+                    "rebuilt the record for {} from its VirtualHost",
+                    site.domain
+                ),
+            );
+        }
+        Ok(adopted.len())
+    }
+
     pub fn hosts_text(&self) -> AppResult<String> {
         Ok(
             servora_core::storage::read_to_string_opt(&self.paths.hosts_file)?
@@ -213,6 +263,7 @@ impl SiteService {
     // ------------------------------------------------------------- reading
 
     pub fn views(&self) -> AppResult<Vec<WebsiteView>> {
+        self.reconcile()?;
         let store = self.store()?;
         let hosts = self.hosts_text()?;
         Ok(store
@@ -223,6 +274,7 @@ impl SiteService {
     }
 
     pub fn website_view(&self, id: &str) -> AppResult<WebsiteView> {
+        self.reconcile()?;
         let store = self.store()?;
         let website = store
             .get(id)
@@ -288,6 +340,7 @@ impl SiteService {
     }
 
     pub fn managed_domains(&self) -> AppResult<serde_json::Value> {
+        self.reconcile()?;
         let hosts = HostsFile::parse(&self.hosts_text()?);
         let store = self.store()?;
         let mut domains = Vec::new();
@@ -365,6 +418,7 @@ impl SiteService {
     }
 
     pub async fn update(&self, id: &str, input: &WebsiteInput) -> AppResult<SiteOperationReport> {
+        self.reconcile()?;
         let existing = self
             .store()?
             .get(id)
@@ -421,6 +475,7 @@ impl SiteService {
     }
 
     pub async fn rename(&self, id: &str, domain: &str) -> AppResult<SiteOperationReport> {
+        self.reconcile()?;
         let existing = self
             .store()?
             .get(id)
@@ -439,6 +494,7 @@ impl SiteService {
     }
 
     pub async fn remove(&self, id: &str) -> AppResult<SiteOperationReport> {
+        self.reconcile()?;
         let mut store = self.store()?;
         let website = store
             .get(id)
@@ -639,17 +695,22 @@ impl SiteService {
     }
 
     fn record_history(&self, operation: &str, website: &str, success: bool, outcome: &PlanOutcome) {
+        let summary = if success {
+            format!("{} steps completed", outcome.steps.len())
+        } else {
+            outcome.failure_message().unwrap_or_default()
+        };
+        self.append_history(operation, website, success, &summary);
+    }
+
+    fn append_history(&self, operation: &str, website: &str, success: bool, summary: &str) {
         let mut entries = self.history();
         entries.push(HistoryEntry {
             at_ms: now_ms(),
             operation: operation.to_string(),
             website: website.to_string(),
             success,
-            summary: if success {
-                format!("{} steps completed", outcome.steps.len())
-            } else {
-                outcome.failure_message().unwrap_or_default()
-            },
+            summary: summary.to_string(),
         });
         if entries.len() > 200 {
             let start = entries.len() - 200;
@@ -704,6 +765,57 @@ mod tests {
             document_root: None,
             project_type: None,
         }
+    }
+
+    #[test]
+    fn a_servora_configuration_without_a_record_is_adopted_back() {
+        // The situation the user hit: the VirtualHost and the hosts entry exist,
+        // the stored record does not (it was deleted with the data directory).
+        let service = service("reconcile");
+        let project = service
+            .paths()
+            .data_dir
+            .parent()
+            .unwrap()
+            .join("Work/e-perpus");
+        let domain = servora_core::domain::DomainName::parse("e-perpus.test").unwrap();
+        let config = servora_core::virtualhost::render(&servora_core::virtualhost::VHostSpec {
+            website: "e-perpus".into(),
+            domain: domain.clone(),
+            project_path: project.clone(),
+            document_root: project.join("public"),
+            project_type: servora_core::project::ProjectType::Laravel,
+            php_fpm_socket: None,
+        });
+        fs::write(
+            service
+                .paths()
+                .apache_conf_dir
+                .join(servora_core::virtualhost::config_file_name(&domain)),
+            config,
+        )
+        .unwrap();
+        assert!(service.store().unwrap().websites().is_empty());
+
+        let views = service.views().unwrap();
+        assert_eq!(views.len(), 1, "the configuration must be listed");
+        let view = &views[0];
+        assert_eq!(view.website.name, "e-perpus");
+        assert_eq!(view.website.domain, "e-perpus.test");
+        assert_eq!(view.website.project_path, project.display().to_string());
+        assert_eq!(
+            view.website.origin,
+            Some(servora_core::website::WebsiteOrigin::Recovered)
+        );
+        // The hosts entry is missing, so the state says exactly that.
+        assert_eq!(view.state, "hosts-missing");
+
+        // The adoption is persisted: a second read does not duplicate it, and the
+        // Domain manager can now match the domain to a website.
+        assert_eq!(service.store().unwrap().len(), 1);
+        assert_eq!(service.views().unwrap().len(), 1);
+        assert!(service.reconcile().unwrap() == 0);
+        assert_eq!(service.history()[0].operation, "recover");
     }
 
     #[test]
