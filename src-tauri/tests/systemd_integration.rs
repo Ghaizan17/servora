@@ -122,6 +122,7 @@ async fn restart_roundtrip_leaves_service_running() {
 #[tokio::test]
 #[ignore = "changes service state; requires SERVORA_ALLOW_CONTROL_TESTS=1"]
 async fn stop_and_start_roundtrip() {
+    use servora_lib::error::AppError;
     use servora_lib::models::service::ServiceOperation;
 
     if !control_tests_enabled() {
@@ -132,17 +133,45 @@ async fn stop_and_start_roundtrip() {
     let client = SystemdClient::connect().await.expect("systemd connection");
     let service = ServiceId::MariaDb;
 
-    let stopped = client.operate(service, ServiceOperation::Stop).await.expect("stop");
+    let original = client.status(service).await.expect("status before");
+    println!("original: {:?}/{}", original.state, original.sub_state);
+    if !original.state.is_running() {
+        client
+            .operate(service, ServiceOperation::Start)
+            .await
+            .expect("pre-start");
+    }
+
+    let stopped = client
+        .operate(service, ServiceOperation::Stop)
+        .await
+        .expect("stop");
     assert!(stopped.state.is_stopped(), "mariadb should be stopped");
+    println!("stopped: {:?}/{}", stopped.state, stopped.sub_state);
+
+    // Stopping again must be rejected with a typed error, not a silent success.
+    let again = client
+        .operate(service, ServiceOperation::Stop)
+        .await
+        .expect_err("stopping an inactive unit must fail");
+    assert!(
+        matches!(again, AppError::ServiceAlreadyInactive(_)),
+        "unexpected error: {again}"
+    );
 
     let started = client
         .operate(service, ServiceOperation::Start)
         .await
         .expect("start");
     assert!(started.state.is_running(), "mariadb should be running again");
+    println!("started: {:?}/{}", started.state, started.sub_state);
 
-    let stopped_again = client.operate(service, ServiceOperation::Stop).await;
-    assert!(stopped_again.is_err(), "stopping an inactive unit must fail");
+    // Leave the machine exactly as we found it.
+    let restored = client.status(service).await.expect("status after");
+    assert_eq!(
+        restored.state, original.state,
+        "the service state must be restored after the roundtrip"
+    );
 }
 
 #[tokio::test]
@@ -231,5 +260,4 @@ async fn frontend_json_contract_matches_for_live_data() {
         .map(|service| service["id"].as_str().unwrap())
         .collect();
     assert_eq!(ids, ["httpd", "php-fpm", "mariadb"]);
-    println!("{}", serde_json::to_string_pretty(&json).unwrap());
 }

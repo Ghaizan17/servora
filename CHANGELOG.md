@@ -34,7 +34,10 @@ First working release.
 - Structured error payloads (`code`, `message`, `hint`) for permission denied,
   cancelled authorization, timeouts, missing units, D-Bus and systemd failures.
 - RPM and AppImage packaging, desktop entry and application icon.
-- 51 Rust unit tests plus live systemd integration tests.
+- 51 Rust unit tests plus 9 live systemd integration tests, including
+  start/stop/restart roundtrips authorized through Polkit.
+- Service actions request interactive authorization (`AllowInteractiveAuth`),
+  so Polkit can prompt instead of rejecting the call.
 
 ### Known limitations
 

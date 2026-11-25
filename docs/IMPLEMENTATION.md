@@ -69,10 +69,9 @@ enabled.
 - [x] `npm run build` — frontend build
 - [x] Live integration tests (read-only): unit detection, status vs `systemctl`,
       journal retrieval
-- [ ] Live integration tests (control): restart / stop / start roundtrip
-      — implemented and gated behind `SERVORA_ALLOW_CONTROL_TESTS=1`;
-      not yet run because they interrupt a running development service and
-      require an interactive Polkit approval
+- [x] Live integration tests (control): restart / stop / start roundtrip
+      — run with the user's approval (`SERVORA_ALLOW_CONTROL_TESTS=1`), MariaDB
+      restored to `active` afterwards
 - [x] RPM bundle built and inspected (`rpm -qlp`)
 - [ ] AppImage bundle (see notes below)
 - [ ] RPM install/removal executed (needs root; not run in this environment)
@@ -98,6 +97,11 @@ enabled.
   typed `service_already_active` error.
 - **Tray icons** need `libayatana-appindicator`; on GNOME the AppIndicator
   extension is also required. The application logs the failure and continues.
+- **Interactive authorization flag.** systemd only asks Polkit to authenticate
+  when the D-Bus message carries `AllowInteractiveAuth`; without it the call
+  fails with `InteractiveAuthorizationRequired`. Every manager call therefore
+  sets that flag (`Proxy::call_with_flags`), which lets the desktop show its
+  password dialog instead of Servora silently failing.
 
 ## Verification log
 
@@ -107,4 +111,6 @@ enabled.
 | Frontend build | `npm run build` | `dist/` 45 kB JS |
 | Live status | `cargo test --test systemd_integration -- --ignored` | 3/3 units detected, states match `systemctl` |
 | Live logs | same | 50 entries per unit, parsed timestamps and idents |
+| Live control | `SERVORA_ALLOW_CONTROL_TESTS=1 cargo test --test systemd_integration -- --ignored` | 9 passed: restart and stop/start roundtrip, `Connection:Inactive` → `Active/running`, typed `already inactive` error, state restored |
+| Polkit interactive auth | D-Bus probe with `AllowInteractiveAuth` | job accepted through the desktop authentication agent |
 | App launch | `./target/debug/servora` | window shown, tray created, log file written |
