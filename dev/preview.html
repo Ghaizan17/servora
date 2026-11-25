@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Servora — UI preview harness</title>
+    <style>
+      body {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="min-h-screen"></div>
+    <div
+      id="toast-host"
+      class="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2 px-4"
+      role="status"
+      aria-live="polite"
+    ></div>
+    <script type="module">
+      /*
+       * Design preview harness — DEVELOPMENT ONLY.
+       *
+       * Serves the real frontend against a canned Tauri bridge so layout and
+       * styling can be reviewed in a browser. It never talks to systemd and is
+       * never part of a production build (`vite build` only bundles index.html).
+       * The canned data mirrors the exact JSON shape returned by Rust.
+       */
+      const now = Date.now();
+      const services = [
+        {
+          id: "httpd",
+          unit: "httpd.service",
+          name: "Apache HTTP Server",
+          state: "active",
+          subState: "running",
+          loadState: "loaded",
+          unitFileState: "enabled",
+          description: "The Apache HTTP Server",
+          installed: true,
+          masked: false,
+          observedAtMs: now,
+        },
+        {
+          id: "php-fpm",
+          unit: "php-fpm.service",
+          name: "PHP-FPM",
+          state: "active",
+          subState: "running",
+          loadState: "loaded",
+          unitFileState: "enabled",
+          description: "The PHP FastCGI Process Manager",
+          installed: true,
+          masked: false,
+          observedAtMs: now,
+        },
+        {
+          id: "mariadb",
+          unit: "mariadb.service",
+          name: "MariaDB",
+          state: "failed",
+          subState: "failed",
+          loadState: "loaded",
+          unitFileState: "enabled",
+          description: "MariaDB 11.8 database server",
+          installed: true,
+          masked: false,
+          observedAtMs: now,
+        },
+      ];
+
+      const settings = {
+        theme: new URLSearchParams(location.search).get("theme") || "dark",
+        autoRefresh: true,
+        refreshIntervalMs: 3000,
+        minimizeToTray: true,
+        startMinimized: false,
+        showNotifications: true,
+        logLineLimit: 300,
+      };
+
+      const logs = Array.from({ length: 40 }, (_, index) => {
+        const line = index + 1;
+        const messages = [
+          "AH00558: httpd: Could not reliably determine the server's fully qualified domain name",
+          "Server configured, listening on: port 80",
+          "Started httpd.service - The Apache HTTP Server.",
+          "GET /index.php HTTP/1.1 200 1244",
+          "PHP Warning:  Undefined array key \"id\" in /var/www/html/index.php on line 12",
+        ];
+        const stamp = new Date(now - (40 - index) * 61_000)
+          .toISOString()
+          .replace("Z", "+0000");
+        return {
+          timestamp: stamp,
+          ident: index % 5 === 2 ? "systemd" : "httpd",
+          message: messages[index % messages.length],
+        };
+      });
+
+      const handlers = {
+        get_services_status: () => ({
+          services,
+          allRunning: services.every((s) => s.state === "active"),
+          running: services.filter((s) => s.state === "active").length,
+          total: services.length,
+          systemdAvailable: true,
+          observedAtMs: Date.now(),
+        }),
+        get_service_status: () => services[0],
+        get_app_settings: () => settings,
+        save_app_settings: (args) => Object.assign(settings, args.settings),
+        get_app_info: () => ({
+          name: "Servora",
+          version: "0.1.0",
+          identifier: "dev.servora.app",
+          description: "Local Development Service Manager",
+          repository: "https://github.com/Ghaizan17/servora",
+          license: "MIT",
+          configPath: "/home/user/.config/servora/config.json",
+          logPath: "/home/user/.local/state/servora/servora.log",
+          managedUnits: ["httpd.service", "php-fpm.service", "mariadb.service"],
+          runningAsRoot: false,
+        }),
+        get_authorization_info: () => ({
+          actionId: "org.freedesktop.systemd1.manage-units",
+          mechanism: "systemd D-Bus + Polkit",
+          runsAsRoot: false,
+          helperInstalled: false,
+          notes: [
+            "Servora never runs as root and never stores credentials.",
+            "Service control is sent to systemd over the system bus; systemd asks Polkit for approval.",
+            "Only httpd.service, php-fpm.service and mariadb.service can be addressed.",
+            "Arguments are fixed in Rust. No shell is involved and no command text comes from the UI.",
+          ],
+        }),
+        get_settings_limits: () => ({
+          minRefreshIntervalMs: 1000,
+          maxRefreshIntervalMs: 60000,
+          minLogLines: 50,
+          maxLogLines: 5000,
+        }),
+        get_logs_context: () => ({
+          defaultLineLimit: 300,
+          minLineLimit: 50,
+          maxLineLimit: 5000,
+        }),
+        get_service_logs: (args) => ({
+          service: args.request.service,
+          unit: `${args.request.service}.service`,
+          level: args.request.level,
+          entries: logs.slice(-(args.request.limit || 300)),
+          count: Math.min(logs.length, args.request.limit || 300),
+          truncated: false,
+          requestedLines: args.request.limit || 300,
+          retrievedAtMs: Date.now(),
+        }),
+        start_service: (args) => ({}, void args),
+        "plugin:event|listen": () => 1,
+        "plugin:event|unlisten": () => null,
+      };
+
+      window.__TAURI_INTERNALS__ = {
+        metadata: { currentWindow: { label: "main" }, currentWebview: { windowLabel: "main", label: "main" } },
+        convertFileSrc: (path) => path,
+        invoke: async (command, args) => {
+          const handler = handlers[command.split("|")[0]] || handlers[command];
+          if (!handler) throw { code: "not_mocked", message: `no mock for ${command}` };
+          return handler(args ?? {});
+        },
+      };
+
+      await import("/src/main.js");
+    </script>
+  </body>
+</html>
