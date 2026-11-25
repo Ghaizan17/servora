@@ -282,12 +282,14 @@ export function Dashboard() {
       return;
     }
     refs.degraded.className = "card border-err/40 px-4 py-3";
-    refs.degraded.innerHTML = placeholder({
-      icon: "⚠",
-      tone: "error",
-      title: "systemd is not reachable",
-      message: error.message + (error.hint ? ` — ${error.hint}` : ""),
-    });
+    refs.degraded.replaceChildren(
+      placeholder({
+        icon: "⚠",
+        tone: "error",
+        title: "systemd is not reachable",
+        message: error.message + (error.hint ? ` — ${error.hint}` : ""),
+      }),
+    );
   }
 
   async function refreshStatus({ silent = false } = {}) {

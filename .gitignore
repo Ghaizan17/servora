@@ -22,3 +22,6 @@ src-tauri/gen/schemas/
 # Logs generated while developing
 *.log
 .preview/
+
+# local scratch (screenshots, clips)
+.scratch/

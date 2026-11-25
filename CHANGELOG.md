@@ -4,6 +4,18 @@ All notable changes to Servora are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-11-25
+
+### Fixed
+
+- Empty and error states rendered as raw HTML. `placeholder()` returned a markup
+  string that the Websites, Domains, Diagnostics, Logs, Dashboard and migration
+  dialog call sites appended as a text node, so the pages showed `<div class="…">`
+  and `[object Object]` instead of the message. The helper now builds a real
+  element and its action is a real button with a click handler.
+- Placeholders styled with `tone: "danger"` used the muted colour instead of the
+  error colour.
+
 ## [Unreleased]
 
 ### Added

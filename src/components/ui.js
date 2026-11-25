@@ -47,16 +47,54 @@ export function richText(value) {
   );
 }
 
-/** Empty / error placeholder used by the log viewer. */
-export function placeholder({ icon = "•", title, message, tone = "muted", action }) {
-  return `
-    <div class="flex flex-col items-center justify-center gap-2 px-6 py-14 text-center">
-      <span class="text-2xl ${tone === "error" ? "text-err" : "text-muted"}">${icon}</span>
-      <p class="text-[13px] font-semibold text-ink">${escapeHtml(title)}</p>
-      <p class="max-w-md text-[12px] leading-relaxed text-muted">${richText(message)}</p>
-      ${action ? `<div class="mt-2">${action}</div>` : ""}
-    </div>
-  `;
+/**
+ * Empty / error placeholder.
+ *
+ * Returns an element, not a string, so every caller can `append()` it without
+ * rendering markup as text. `action` is either a real button
+ * (`{ label, onClick }`) or, for backwards compatibility, trusted HTML.
+ */
+export function placeholder({ icon = "•", title = "", message = "", tone = "muted", action } = {}) {
+  const wrapper = document.createElement("div");
+  wrapper.className =
+    "flex flex-col items-center justify-center gap-2 px-6 py-14 text-center";
+
+  const badge = document.createElement("span");
+  badge.className = `text-2xl ${tone === "error" || tone === "danger" ? "text-err" : "text-muted"}`;
+  badge.innerHTML = icon;
+
+  const heading = document.createElement("p");
+  heading.className = "text-[13px] font-semibold text-ink";
+  heading.textContent = title;
+
+  wrapper.append(badge, heading);
+
+  if (message) {
+    const body = document.createElement("p");
+    body.className = "max-w-md text-[12px] leading-relaxed text-muted";
+    body.innerHTML = richText(message);
+    wrapper.append(body);
+  }
+
+  if (action) {
+    const holder = document.createElement("div");
+    holder.className = "mt-2";
+    if (typeof action === "string") {
+      holder.innerHTML = action;
+    } else {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn";
+      button.textContent = action.label ?? "Continue";
+      if (typeof action.onClick === "function") {
+        button.addEventListener("click", action.onClick);
+      }
+      holder.append(button);
+    }
+    wrapper.append(holder);
+  }
+
+  return wrapper;
 }
 
 export function inlineSpinner(size = 14) {

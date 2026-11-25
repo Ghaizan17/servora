@@ -273,7 +273,8 @@
           };
         },
         // ---------------------------------------------------- website manager
-        get_websites: () => websites,
+        get_websites: () =>
+          new URLSearchParams(location.search).get("empty") === "1" ? [] : websites,
         get_website: (args) => websites.find((site) => site.id === args.website),
         get_website_history: () => history,
         get_virtualhost_status: () => ({
@@ -389,7 +390,7 @@
           };
         },
         get_managed_domains: () => ({
-          domains: websites.map((site, index) => ({
+          domains: (new URLSearchParams(location.search).get("empty") === "1" ? [] : websites).map((site, index) => ({
             domain: site.domain,
             ip: "127.0.0.1",
             website: site.name,
@@ -398,7 +399,7 @@
             line: index + 3,
           })),
           hostsPath: "/etc/hosts",
-          servoraWebsites: websites.map((site) => ({
+          servoraWebsites: (new URLSearchParams(location.search).get("empty") === "1" ? [] : websites).map((site) => ({
             domain: site.domain,
             website: site.name,
             websiteId: site.id,

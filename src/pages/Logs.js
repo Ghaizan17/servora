@@ -120,27 +120,30 @@ export function Logs() {
     }
 
     if (state.error) {
-      refs.body.innerHTML = placeholder({
-        icon: "⚠",
-        tone: "error",
-        title: "The journal could not be read",
-        message:
-          state.error.message + (state.error.hint ? ` — ${state.error.hint}` : ""),
-        action: `<button data-retry class="btn">${icons.refresh(13)}<span>Try again</span></button>`,
-      });
-      refs.body.querySelector("[data-retry]")?.addEventListener("click", () => load());
+      refs.body.replaceChildren(
+        placeholder({
+          icon: "⚠",
+          tone: "error",
+          title: "The journal could not be read",
+          message:
+            state.error.message + (state.error.hint ? ` — ${state.error.hint}` : ""),
+          action: { label: "Try again", onClick: () => load() },
+        }),
+      );
       return;
     }
 
     const entries = state.data?.entries ?? [];
     if (entries.length === 0) {
-      refs.body.innerHTML = placeholder({
-        icon: "○",
-        title: "No matching journal entries",
-        message: `systemd has not written any ${
-          state.level === "all" ? "" : state.level === "errors" ? "error " : "warning "
-        }entries for ${state.service}.service yet.`,
-      });
+      refs.body.replaceChildren(
+        placeholder({
+          icon: "○",
+          title: "No matching journal entries",
+          message: `systemd has not written any ${
+            state.level === "all" ? "" : state.level === "errors" ? "error " : "warning "
+          }entries for ${state.service}.service yet.`,
+        }),
+      );
       return;
     }
 
