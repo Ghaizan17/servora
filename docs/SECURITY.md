@@ -70,7 +70,8 @@ errors, but the same rules run again in Rust, and the plan is rebuilt there.
 | `/etc/hosts` (inside `# BEGIN SERVORA MANAGED DOMAINS`) | domain resolution | pkexec + Polkit |
 | ACLs on project directories | Apache can read the project | pkexec + Polkit |
 | SELinux file contexts | Apache can read/write where needed | pkexec + Polkit |
-| `~/.config/servora/*`, `~/.local/share/servora/*` | settings, metadata, backups | user only |
+| `~/.config/servora/*`, `~/.local/share/servora/*` | settings, website metadata, history | user only |
+| `/var/lib/servora/backups/` | copies of every replaced `/etc` file | root (written by the helper) |
 
 SELinux is never disabled, never set to permissive, and no boolean is flipped.
 Servora only adds `semanage fcontext` rules for the paths it manages and runs

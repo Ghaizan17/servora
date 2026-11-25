@@ -76,7 +76,10 @@ enabled.
       restored to `active` afterwards
 - [x] RPM bundle built and inspected (`rpm -qlp`)
 - [ ] AppImage bundle (see notes below)
-- [ ] RPM install/removal executed (needs root; not run in this environment)
+- [x] RPM install executed through the desktop Polkit dialog
+      (`pkexec dnf install`); the post-install scriptlet placed the helper and the
+      action where pkexec and polkitd look for them
+- [ ] RPM removal executed (destructive; left to the user)
 - [x] UI verified visually in dark and light themes (preview harness screenshots)
 - [x] Minimum window size (780x600) checked: the cards collapse to a single
       column below 920 px so names and buttons are never truncated
@@ -136,7 +139,8 @@ runtime. Its behaviour was migrated into `crates/servora-core` after the audit i
 - [x] Transactional planner: write → hosts → ACL → SELinux → `apachectl
       configtest` → reload, with file snapshots and rollback on any failure
 - [x] `apachectl configtest` always runs before a reload; backup of the previous
-      configuration is kept under `~/.local/share/servora/backups`
+      configuration is kept under `/var/lib/servora/backups` (the helper runs as
+      root, so its backups live in a root-owned directory, not in your home)
 - [x] Website metadata store (`websites.json`) reconciled with the live Apache
       configuration on every read
 - [x] Tauri commands: `get_websites`, `create_website`, `update_website`,
@@ -157,9 +161,16 @@ runtime. Its behaviour was migrated into `crates/servora-core` after the audit i
       (`cargo test --release --test website_manager`): the scan detects
       `e-perpus-skenda.com` (with the duplicated hosts line), `red-shop.com` and
       the hand written `ict-project.test`, and `apachectl configtest` passes
-- [ ] Live import / creation of a website on this machine: needs the Polkit
-      password. The plan execution path is covered by the core integration tests
-      (injected system) and by the helper's own rejection tests
+- [x] Live create + remove roundtrip through `pkexec` + Polkit
+      (`cargo test --release --test website_live -- --ignored`): 7 steps for the
+      create (`write-config`, `write-hosts`, `acl`, `selinux-context`,
+      `selinux-restore`, `configtest`, `reload`), ACL `user:apache:r-x` on the
+      project, `state=live`, then 5 steps for the removal with configuration,
+      hosts entry and SELinux rules gone and the project directory preserved
+- [x] Live siteForge import: `e-perpus-skenda.com` and `red-shop.com` were
+      adopted, their VirtualHosts rewritten with the Servora marker, the two
+      duplicate `e-perpus-skenda.com` hosts lines collapsed into one managed line
+      and both sites still answer with the same HTTP status (302 / 301)
 - [x] RPM payload verified: `/usr/bin/servora`, `/usr/lib/Servora/servora-helper`,
       `/usr/lib/Servora/dev.servora.app.manage-sites.policy`, desktop entry and
       icons; the post-install scriptlet installs the helper to
@@ -191,8 +202,11 @@ driven by an injected failing step, both against a temporary filesystem root
 | Live control | `SERVORA_ALLOW_CONTROL_TESTS=1 cargo test --test systemd_integration -- --ignored` | 9 passed: restart and stop/start roundtrip, `Connection:Inactive` → `Active/running`, typed `already inactive` error, state restored |
 | Polkit interactive auth | D-Bus probe with `AllowInteractiveAuth` | job accepted through the desktop authentication agent |
 | App launch | `./target/debug/servora` | window shown, tray created, log file written |
-| Core suite | `cargo test -p servora-core` | 88 passed |
+| Core suite | `cargo test -p servora-core` | 89 passed |
 | Helper suite | `cargo test -p servora-helper` | 5 passed |
 | Helper safety | `servora-helper --apply-plan` with `/etc/passwd` | rejected, nothing written |
-| Workspace suite | `cargo test --workspace` | 155 passed (62 app + 88 core + 5 helper) |
+| Workspace suite | `cargo test --workspace` | 165 passed (64 app + 89 core + 5 helper + 7 live read-only) |
+| Live website roundtrip | `SERVORA_ALLOW_SITE_TESTS=1 cargo test --release --test website_live -- --ignored` | create 7/7 steps + remove 5/5 steps, `state=live`, no leftovers |
+| Live siteForge import | `SERVORA_IMPORT_DOMAINS="e-perpus-skenda.com,red-shop.com" cargo test --test siteforge_import_live -- --ignored` | 2 sites adopted, duplicates collapsed, both still serving |
+| RPM install | `pkexec dnf install ./Servora-0.1.0-1.x86_64.rpm` | installed; `/usr/libexec/servora-helper` + action present; `pkaction --action-id dev.servora.app.manage-sites` resolves |
 | Website pages | preview harness + DOM dump | list, domains table and diagnostics render with mocked bridge data |

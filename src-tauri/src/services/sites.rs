@@ -464,8 +464,7 @@ impl SiteService {
             store.remove(&website.id)?;
             store.save()?;
             report.warnings.push(
-                "source files, database contents, ACLs and SELinux contexts were left untouched"
-                    .to_string(),
+                "source files, database contents and databases were left untouched; the ACLs and SELinux rules Servora added were removed".to_string(),
             );
         }
         self.record_history("remove", &website.name, outcome.success, &outcome);

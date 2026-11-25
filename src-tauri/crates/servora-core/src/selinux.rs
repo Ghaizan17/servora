@@ -71,6 +71,15 @@ impl FcontextRule {
         ]
     }
 
+    /// Arguments for removing the rule again.
+    pub fn delete_args(&self) -> Vec<String> {
+        vec![
+            "fcontext".to_string(),
+            "-d".to_string(),
+            self.pattern.clone(),
+        ]
+    }
+
     /// Arguments for modifying an existing rule (used when it is already present).
     pub fn modify_args(&self) -> Vec<String> {
         vec![
@@ -185,4 +194,11 @@ mod tests {
     fn missing_project_is_rejected() {
         assert!(rules_for(Path::new("/nonexistent/project"), &[]).is_err());
     }
+}
+
+/// `semanage fcontext -d` reports a missing rule as an error; that is not a
+/// failure for Servora, which only ever removes what it may have added.
+pub fn is_missing_rule(stderr: &str) -> bool {
+    let text = stderr.to_ascii_lowercase();
+    text.contains("not defined") || text.contains("no such file") || text.contains("does not exist")
 }

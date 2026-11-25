@@ -23,6 +23,16 @@ All notable changes to Servora are documented here. The format follows
   snapshot-based rollback of the files a failing plan already wrote.
 - Native directory picker, focus-trapping modal dialogs, and About page.
 
+### Fixed
+
+- Importing or re-saving a domain in `/etc/hosts` now removes the leftover
+  duplicate lines for that domain (the siteForge rename bug), while lines for
+  other domains are preserved.
+- Removing a website deletes the SELinux file-context rules Servora added
+  instead of leaving stale patterns behind.
+- Privileged backups are written to `/var/lib/servora/backups` instead of the
+  helper's `$HOME`, which after `pkexec` is `/root`.
+
 ### Changed
 
 - Navigation is grouped into *Workspace* (Dashboard, Websites, Domains, Logs) and

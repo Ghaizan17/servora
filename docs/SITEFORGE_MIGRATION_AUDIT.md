@@ -147,7 +147,7 @@ no dotfile protection and no `Options` line.
 | B4 | `add` requires `public/index.php`, so a plain PHP app without `public/` cannot be registered | code reading | Servora detects document root (public → root) and supports generic PHP |
 | B5 | `BASE_HOME=/home/ghaizan` and the `apache` user are hardcoded | header of both scripts | Servora resolves `$HOME` at runtime and the httpd user from config |
 | B6 | Website name is not stored; `list`/`info` show the domain as the name | code reading | Servora stores a name + project path in its own metadata |
-| B7 | No backups survive the operation; recovery is only in-memory during the run | code reading | Servora writes timestamped backups under `~/.local/share/servora/backups` |
+| B7 | No backups survive the operation; recovery is only in-memory during the run | code reading | Servora writes timestamped backups under `/var/lib/servora/backups` |
 | B8 | No concurrency guard between two siteForge runs | code reading | Servora serialises operations behind one async mutex |
 | B9 | `*.test.conf` files are listed even without the marker, so hand written sites appear managed | `list_sites` | Servora classifies them as *unmanaged/legacy* and never claims ownership silently |
 | B10 | Hosts entries carry no ownership marker | `/etc/hosts` | Servora writes `# BEGIN/END SERVORA MANAGED DOMAINS` and reads legacy lines as advisory |

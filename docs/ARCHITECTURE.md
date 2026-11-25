@@ -93,7 +93,7 @@ VirtualHost can never reach the running server.
 | `~/.local/share/servora/websites.json` | Website metadata (`SCHEMA_VERSION = 1`) |
 | `~/.local/share/servora/migrations.json` | What was imported, from where, when |
 | `~/.local/share/servora/history.json` | Last 200 operations and their result |
-| `~/.local/share/servora/backups/` | Timestamped copies of replaced files |
+| `/var/lib/servora/backups/` | Timestamped copies of every replaced `/etc` file (written by the helper, which runs as root) |
 | `~/.local/state/servora/servora.log` | Application log |
 
 Metadata is **not** the source of truth. Every read calls

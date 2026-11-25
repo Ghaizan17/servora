@@ -172,20 +172,17 @@ impl HostsFile {
     /// Idempotent: an existing managed entry is replaced, an unrelated entry for
     /// the same domain is left untouched (so the user is warned instead of
     /// silently losing a line).
+    /// Add a managed entry for `domain`.
+    ///
+    /// Every other line for that same domain is dropped in the same write, so a
+    /// domain can never end up listed twice (the bug this tool replaces used to
+    /// leave behind after a rename). Lines for other domains are never touched.
     pub fn with_domain(&self, domain: &str, website: &str, ip: &str) -> String {
         let domain = domain.trim().to_ascii_lowercase();
         let mut managed = self.managed_domains();
-        managed.insert(domain, Some(website.to_string()));
+        managed.insert(domain.clone(), Some(website.to_string()));
 
-        let unmanaged: Vec<String> = self
-            .entries
-            .iter()
-            .filter(|entry| !entry.managed)
-            .map(|entry| format!("{} {}  # keep", entry.ip, entry.domain))
-            .collect();
-        let _ = unmanaged;
-
-        self.render(&managed, ip, true)
+        self.render_with(&managed, ip, &[domain])
     }
 
     /// Render the file with `domain` no longer registered by Servora.
@@ -193,14 +190,15 @@ impl HostsFile {
         let domain = domain.trim().to_ascii_lowercase();
         let mut managed = self.managed_domains();
         managed.remove(&domain);
-        self.render(&managed, DEFAULT_LOCAL_IP, false)
+        self.render_with(&managed, DEFAULT_LOCAL_IP, &[])
     }
 
-    fn render(
+    /// Render the file, dropping any existing line for the domains in `drop`.
+    fn render_with(
         &self,
         managed: &BTreeMap<String, Option<String>>,
         ip: &str,
-        _unused: bool,
+        drop: &[String],
     ) -> String {
         let mut body: Vec<String> = Vec::new();
         let mut inside = false;
@@ -218,13 +216,12 @@ impl HostsFile {
             if inside {
                 continue;
             }
-            // Drop a managed entry that appears outside the block (older formats).
-            if self
-                .entries
-                .iter()
-                .any(|entry| entry.line == index + 1 && entry.managed)
-            {
-                continue;
+            // Drop a managed entry that appears outside the block (older formats)
+            // and any hand written line for a domain Servora now owns.
+            if let Some(entry) = self.entries.iter().find(|entry| entry.line == index + 1) {
+                if entry.managed || drop.iter().any(|domain| domain == &entry.domain) {
+                    continue;
+                }
             }
             body.push(raw.trim_end().to_string());
         }
@@ -316,6 +313,27 @@ mod tests {
             HostsFile::parse(&twice).entries_for("e-perpus.test").len(),
             1
         );
+    }
+
+    #[test]
+    fn adding_a_domain_removes_duplicate_lines_for_that_domain() {
+        // Two siteForge leftovers for the same domain: they must collapse into
+        // one managed entry, while the unrelated lines survive untouched.
+        let text = "127.0.0.1 localhost\n\
+127.0.0.1 e-perpus-skenda.com\n\
+127.0.0.1 e-perpus-skenda.com\n\
+127.0.0.1\tother.test\t# keep me\n";
+        let hosts = HostsFile::parse(text);
+        assert_eq!(hosts.state("e-perpus-skenda.com"), HostsState::Duplicate(2));
+
+        let rendered = hosts.with_domain("e-perpus-skenda.com", "e-perpus", "127.0.0.1");
+        let parsed = HostsFile::parse(&rendered);
+        assert_eq!(parsed.state("e-perpus-skenda.com"), HostsState::Managed);
+        assert_eq!(parsed.entries_for("e-perpus-skenda.com").len(), 1);
+        assert_eq!(rendered.matches("e-perpus-skenda.com").count(), 1);
+        assert!(rendered.contains("127.0.0.1 localhost"));
+        assert!(rendered.contains("other.test"), "{rendered}");
+        assert!(rendered.contains(MANAGED_BEGIN));
     }
 
     #[test]

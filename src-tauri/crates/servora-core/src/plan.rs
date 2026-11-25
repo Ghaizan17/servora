@@ -36,6 +36,10 @@ pub enum StepAction {
     SetFcontext {
         rules: Vec<FcontextRule>,
     },
+    /// Remove `semanage fcontext` rules that Servora added for a site.
+    DeleteFcontext {
+        rules: Vec<FcontextRule>,
+    },
     Restorecon {
         path: String,
     },
@@ -439,6 +443,21 @@ fn run_step(
                     return Ok(StepResult::failed(
                         step,
                         format!("semanage {}: {}", rule.pattern, output.summary()),
+                    ));
+                }
+            }
+            Ok(StepResult::ok(step))
+        }
+        StepAction::DeleteFcontext { rules } => {
+            if rules.is_empty() {
+                return Ok(StepResult::skipped(step, "no SELinux rules were recorded"));
+            }
+            for rule in rules {
+                let output = ops.run("semanage", &rule.delete_args())?;
+                if !output.success && !crate::selinux::is_missing_rule(&output.summary()) {
+                    return Ok(StepResult::failed(
+                        step,
+                        format!("semanage -d {}: {}", rule.pattern, output.summary()),
                     ));
                 }
             }

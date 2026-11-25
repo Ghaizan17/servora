@@ -35,11 +35,16 @@ const MAX_STEPS: usize = 256;
 const CONF_DIR: &str = "/etc/httpd/conf.d";
 const HOSTS_FILE: &str = "/etc/hosts";
 
+/// Where the helper keeps its backups. It runs as root with `HOME=/root`, so a
+/// per-user directory would be wrong (and invisible to the user anyway).
+const HELPER_DATA_DIR: &str = "/var/lib/servora";
+
 fn production_paths() -> Paths {
     // Ignore SERVORA_TEST_ROOT: a privileged helper must never be retargeted.
     let mut paths = Paths::default();
     paths.apache_conf_dir = PathBuf::from(CONF_DIR);
     paths.hosts_file = PathBuf::from(HOSTS_FILE);
+    paths.data_dir = PathBuf::from(HELPER_DATA_DIR);
     paths
 }
 
@@ -55,6 +60,17 @@ fn validate_paths(plan: &Plan) -> Result<(), String> {
         ));
     }
     for step in &plan.steps {
+        if let servora_core::plan::StepAction::DeleteFcontext { rules } = &step.action {
+            for rule in rules {
+                // Only absolute SELinux patterns may be removed.
+                if !rule.pattern.starts_with('/') || rule.pattern.len() > 512 {
+                    return Err(format!(
+                        "step `{}` removes an invalid SELinux pattern: {}",
+                        step.id, rule.pattern
+                    ));
+                }
+            }
+        }
         if let servora_core::plan::StepAction::WriteFile { path, .. }
         | servora_core::plan::StepAction::RemoveFile { path, .. } = &step.action
         {
@@ -210,6 +226,47 @@ mod tests {
             ));
         }
         assert!(validate_paths(&plan).is_err());
+    }
+
+    #[test]
+    fn rejects_selinux_patterns_that_are_not_absolute() {
+        let mut plan = Plan::new("remove", Some("e-perpus".into()));
+        plan = plan.push(Step::new(
+            "selinux-cleanup",
+            "clean up",
+            StepAction::DeleteFcontext {
+                rules: vec![servora_core::selinux::FcontextRule {
+                    pattern: "relative/path(/.*)?".into(),
+                    context: "httpd_sys_content_t".into(),
+                    reason: "test".into(),
+                }],
+            },
+        ));
+        assert!(validate_paths(&plan).is_err());
+
+        let mut ok = Plan::new("remove", Some("e-perpus".into()));
+        ok = ok.push(Step::new(
+            "selinux-cleanup",
+            "clean up",
+            StepAction::DeleteFcontext {
+                rules: vec![servora_core::selinux::FcontextRule {
+                    pattern: "/tmp/site(/.*)?".into(),
+                    context: "httpd_sys_content_t".into(),
+                    reason: "test".into(),
+                }],
+            },
+        ));
+        assert!(validate_paths(&ok).is_ok());
+    }
+
+    #[test]
+    fn backups_go_to_a_root_owned_directory() {
+        let paths = production_paths();
+        assert_eq!(paths.data_dir, PathBuf::from("/var/lib/servora"));
+        assert_eq!(
+            paths.backups_dir(),
+            PathBuf::from("/var/lib/servora/backups")
+        );
     }
 
     #[test]

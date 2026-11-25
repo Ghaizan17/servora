@@ -295,7 +295,8 @@ pub async fn get_site_paths(state: State<'_, AppState>) -> Result<serde_json::Va
     Ok(serde_json::json!({
         "configDir": paths.config_dir.display().to_string(),
         "dataDir": paths.data_dir.display().to_string(),
-        "backupsDir": paths.backups_dir().display().to_string(),
+        // Backups are written by the helper, which runs as root.
+        "backupsDir": "/var/lib/servora/backups",
         "apacheConfDir": paths.apache_conf_dir.display().to_string(),
         "hostsFile": paths.hosts_file.display().to_string(),
         "helperPath": paths.helper_path.display().to_string(),

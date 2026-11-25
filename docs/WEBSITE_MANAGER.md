@@ -13,7 +13,7 @@ filters, three sorts and a per-site details panel.
 | Read access for Apache | POSIX ACLs on the project directory |
 | SELinux contexts | `httpd_sys_content_t` on the project, `httpd_sys_rw_content_t` on writable directories |
 | Metadata | `~/.local/share/servora/websites.json` |
-| Backup of the replaced file | `~/.local/share/servora/backups/` |
+| Backup of the replaced file | `/var/lib/servora/backups/` |
 
 ## Creating a website
 
@@ -62,7 +62,7 @@ removed inside the managed block only — foreign lines are never touched.
 
 * `/etc/httpd/conf.d/<domain>.conf`
 * the managed hosts line for that domain
-* Servora's SELinux file-context rules
+* the SELinux file-context rules Servora added
 
 It keeps your project files, databases, uploads and backups. The confirmation
 dialog lists exactly this before anything runs.

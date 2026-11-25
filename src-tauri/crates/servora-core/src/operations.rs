@@ -308,6 +308,18 @@ pub fn update_plan(
         ));
 
     if project_changed {
+        // The old location keeps no stale contexts.
+        plan = plan.push(Step::new(
+            "selinux-cleanup",
+            format!(
+                "remove the SELinux context rules for {}",
+                existing.project_path
+            ),
+            StepAction::DeleteFcontext {
+                rules: crate::selinux::rules_for(Path::new(&existing.project_path), &[])
+                    .unwrap_or_default(),
+            },
+        ));
         plan = plan.push(acl_step(&resolved.project_path, ctx)?);
         for step in selinux_steps(&resolved.project_path, ctx)? {
             plan = plan.push(step);
@@ -360,6 +372,17 @@ pub fn remove_plan(website: &Website, ctx: &SiteContext) -> CoreResult<Plan> {
                 contents: hosts,
                 mode: 0o644,
                 label: "hosts".into(),
+            },
+        ))
+        .push(Step::new(
+            "selinux-cleanup",
+            format!(
+                "remove the SELinux context rules for {}",
+                website.project_path
+            ),
+            StepAction::DeleteFcontext {
+                rules: crate::selinux::rules_for(Path::new(&website.project_path), &[])
+                    .unwrap_or_default(),
             },
         ))
         .push(Step::new(
@@ -667,9 +690,31 @@ mod tests {
         let ids: Vec<&str> = plan.steps.iter().map(|step| step.id.as_str()).collect();
         assert_eq!(
             ids,
-            ["remove-config", "write-hosts", "configtest", "reload"]
+            [
+                "remove-config",
+                "write-hosts",
+                "selinux-cleanup",
+                "configtest",
+                "reload"
+            ]
         );
-        // No ACL or SELinux reversal and no project deletion.
+
+        // The SELinux context rules Servora added are taken out again.
+        let cleanup = plan
+            .steps
+            .iter()
+            .find(|step| step.id == "selinux-cleanup")
+            .unwrap();
+        let StepAction::DeleteFcontext { rules } = &cleanup.action else {
+            panic!("expected a DeleteFcontext step");
+        };
+        assert!(!rules.is_empty(), "the project rules must be removed");
+        for rule in rules {
+            assert!(rule.pattern.starts_with('/'));
+            assert_eq!(rule.delete_args()[1], "-d");
+        }
+
+        // No project deletion and no ACL reversal.
         assert!(!plan.steps.iter().any(|step| matches!(
             &step.action,
             StepAction::RemoveFile { path, .. } if path.contains("Work")
