@@ -153,8 +153,19 @@ runtime. Its behaviour was migrated into `crates/servora-core` after the audit i
 - [x] siteForge migration: detection, preview dialog, selective import, migration
       log (`migrations.json`), never deleting anything, idempotent re-import
 - [x] Operations serialised behind one lock so two plans cannot interleave
-- [ ] Live import of the two siteForge sites on this machine (needs the Polkit
-      password; the flow is exercised end-to-end by the core integration tests)
+- [x] Read-only integration tests against the live machine
+      (`cargo test --release --test website_manager`): the scan detects
+      `e-perpus-skenda.com` (with the duplicated hosts line), `red-shop.com` and
+      the hand written `ict-project.test`, and `apachectl configtest` passes
+- [ ] Live import / creation of a website on this machine: needs the Polkit
+      password. The plan execution path is covered by the core integration tests
+      (injected system) and by the helper's own rejection tests
+- [x] RPM payload verified: `/usr/bin/servora`, `/usr/lib/Servora/servora-helper`,
+      `/usr/lib/Servora/dev.servora.app.manage-sites.policy`, desktop entry and
+      icons; the post-install scriptlet installs the helper to
+      `/usr/libexec/servora-helper` and the action to
+      `/usr/share/polkit-1/actions/`
+- [ ] `dnf install` of the RPM (needs root)
 
 ### Core test inventory
 
