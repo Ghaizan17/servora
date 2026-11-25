@@ -21,3 +21,4 @@ src-tauri/gen/schemas/
 
 # Logs generated while developing
 *.log
+.preview/

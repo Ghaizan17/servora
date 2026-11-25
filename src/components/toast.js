@@ -37,7 +37,7 @@ export function toast({ tone = "info", title, message, hint, timeout = 5200 }) {
     <div class="min-w-0 flex-1">
       <p class="text-[13px] font-semibold text-ink">${escapeHtml(title)}</p>
       ${message ? `<p class="mt-0.5 text-[12px] leading-snug text-ink-soft">${escapeHtml(message)}</p>` : ""}
-      ${hint ? `<p class="mt-1 text-[11.5px] leading-snug text-muted">${escapeHtml(hint)}</p>` : ""}
+      ${hint ? `<p class="mt-1 text-[11.5px] leading-snug text-muted">${escapeHtml(String(hint).replace(/`/g, ""))}</p>` : ""}
     </div>
     <button class="btn btn-ghost -mr-1 -mt-1 h-6 w-6 px-0 text-muted" aria-label="Dismiss notification">✕</button>
   `;

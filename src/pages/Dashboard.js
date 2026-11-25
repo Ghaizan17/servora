@@ -39,7 +39,7 @@ class ServiceCard {
             ${icons.server(17)}
           </span>
           <div class="min-w-0">
-            <h3 class="truncate text-[14px] font-semibold text-ink">${escapeHtml(service.name)}</h3>
+            <h3 class="truncate text-[14px] font-semibold text-ink" title="${escapeHtml(service.name)}">${escapeHtml(service.name)}</h3>
             <p class="truncate font-mono text-[11px] text-muted">${escapeHtml(service.unit)}</p>
           </div>
         </div>
@@ -137,10 +137,21 @@ class ServiceCard {
     this.refs.notice.classList.add("hidden");
   }
 
+  /** Disable actions when the backend cannot reach systemd at all. */
+  setAvailable(available, reason) {
+    this.available = available;
+    const blocked = !available;
+    this.refs.toggle.disabled = blocked || this.busy;
+    this.refs.restart.disabled = blocked || this.busy;
+    this.refs.toggle.title = blocked ? reason : "";
+    this.refs.restart.title = blocked ? reason : `Restart ${this.service.name}`;
+  }
+
   setBusy(busy) {
     this.busy = busy;
-    this.refs.toggle.disabled = busy;
-    this.refs.restart.disabled = busy;
+    const blocked = this.available === false;
+    this.refs.toggle.disabled = busy || blocked;
+    this.refs.restart.disabled = busy || blocked;
     this.refs.overlay.classList.toggle("hidden", !busy);
     this.refs.overlay.classList.toggle("flex", busy);
     this.refs.overlay.innerHTML = busy
@@ -183,7 +194,7 @@ export function Dashboard() {
 
     <section data-role="batch-progress" class="hidden card-quiet px-4 py-3"></section>
 
-    <section data-role="cards" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"></section>
+    <section data-role="cards" class="grid gap-4 min-[920px]:grid-cols-2 min-[1240px]:grid-cols-3"></section>
 
     <p class="px-1 pb-1 text-[11.5px] leading-relaxed text-muted">
       Service actions are sent to systemd over the system bus and authorized by Polkit.
@@ -233,6 +244,20 @@ export function Dashboard() {
     refs.updated.textContent = `Updated ${clockTime(epochMs)} (${relativeTime(epochMs)})`;
   }
 
+  let offline = null; // unknown until the first status response
+
+  function setOffline(value) {
+    const reason = "systemd is unavailable, so no action can run";
+    const next = Boolean(value);
+    if (offline === next) return;
+    offline = next;
+    element.querySelectorAll("[data-batch]").forEach((button) => {
+      button.disabled = next || batchRunning;
+      button.title = next ? reason : "";
+    });
+    for (const card of cards.values()) card.setAvailable(!next, reason);
+  }
+
   function renderOverall(response) {
     const services = response?.services ?? [];
     const running = services.filter((s) => isRunning(s.state)).length;
@@ -275,10 +300,12 @@ export function Dashboard() {
         }
         renderOverall(response);
         renderDegraded(response.error);
+        setOffline(response.systemdAvailable === false || Boolean(response.error));
         if (!silent && response.error) {
           toastError(new ServoraError(response.error), "Status unavailable");
         }
       } catch (error) {
+        setOffline(true);
         renderDegraded({
           message: error.message,
           hint: error.hint,
@@ -335,7 +362,7 @@ export function Dashboard() {
 
   async function toggleService(id) {
     const card = cards.get(id);
-    if (!card || card.busy || batchRunning) return;
+    if (!card || card.busy || batchRunning || offline) return;
     const running = isRunning(card.status?.state);
     card.setBusy(true);
     const name = card.service.name;
@@ -347,7 +374,7 @@ export function Dashboard() {
 
   async function restartService(id) {
     const card = cards.get(id);
-    if (!card || card.busy || batchRunning) return;
+    if (!card || card.busy || batchRunning || offline) return;
     card.setBusy(true);
     await performOperation("Restart", () => api.restartService(id), card.service.name);
     card.setBusy(false);
@@ -357,7 +384,7 @@ export function Dashboard() {
     batchRunning = running;
     element
       .querySelectorAll("[data-batch]")
-      .forEach((button) => (button.disabled = running));
+      .forEach((button) => (button.disabled = running || offline));
     if (!running) {
       window.setTimeout(() => {
         refs.progress.className = "hidden";

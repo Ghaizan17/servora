@@ -60,7 +60,7 @@ export function Logs() {
         <span data-role="summary">No logs loaded yet</span>
         <span data-role="updated">—</span>
       </header>
-      <div data-role="body" class="scroll-area min-h-0 flex-1"></div>
+      <div data-role="body" class="scroll-area flex min-h-0 flex-1 flex-col justify-center"></div>
     </section>
   `;
 

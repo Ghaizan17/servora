@@ -13,6 +13,8 @@ enabled.
 - [x] Rust crate layout (`commands/`, `services/`, `models/`, `error.rs`, `state.rs`, `tray.rs`)
 - [x] Vite 7 + Tailwind CSS 4 (via `@tailwindcss/vite`), dark-first design tokens
 - [x] Application icon generated, installed for window, tray, desktop entry
+      (neon "Servora" badge from `docs/branding/servora-icon-source.png`,
+      square-cropped and made transparent at the corners)
 - [x] Initial window renders (verified with the preview harness and the running app)
 
 ## Phase 2 — Backend and system integration
@@ -76,6 +78,11 @@ enabled.
 - [ ] AppImage bundle (see notes below)
 - [ ] RPM install/removal executed (needs root; not run in this environment)
 - [x] UI verified visually in dark and light themes (preview harness screenshots)
+- [x] Minimum window size (780x600) checked: the cards collapse to a single
+      column below 920 px so names and buttons are never truncated
+- [x] Degraded states checked in the harness: systemd unreachable disables every
+      action button (verified through the DOM, not just visually), and journal
+      permission errors render a message, an actionable hint and "Try again"
 
 ## Phase 8 — Release preparation
 

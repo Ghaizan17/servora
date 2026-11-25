@@ -39,13 +39,21 @@ export function sectionHeader({ title, description, action }) {
   return header;
 }
 
+/** Escape text, then render code spans so error hints stay readable. */
+export function richText(value) {
+  return escapeHtml(value ?? "").replace(
+    /`([^`]+)`/g,
+    '<code class="rounded bg-panel-soft px-1 py-0.5 font-mono text-[11px] text-ink-soft">$1</code>',
+  );
+}
+
 /** Empty / error placeholder used by the log viewer. */
 export function placeholder({ icon = "•", title, message, tone = "muted", action }) {
   return `
     <div class="flex flex-col items-center justify-center gap-2 px-6 py-14 text-center">
       <span class="text-2xl ${tone === "error" ? "text-err" : "text-muted"}">${icon}</span>
       <p class="text-[13px] font-semibold text-ink">${escapeHtml(title)}</p>
-      <p class="max-w-md text-[12px] leading-relaxed text-muted">${escapeHtml(message)}</p>
+      <p class="max-w-md text-[12px] leading-relaxed text-muted">${richText(message)}</p>
       ${action ? `<div class="mt-2">${action}</div>` : ""}
     </div>
   `;

@@ -99,15 +99,41 @@
         };
       });
 
+      const scenario = new URLSearchParams(location.search).get("scenario") || "";
+
+      function degraded() {
+        return services.map((service) => ({
+          ...service,
+          state: "unknown",
+          subState: "",
+          installed: false,
+        }));
+      }
+
       const handlers = {
-        get_services_status: () => ({
-          services,
-          allRunning: services.every((s) => s.state === "active"),
-          running: services.filter((s) => s.state === "active").length,
-          total: services.length,
-          systemdAvailable: true,
-          observedAtMs: Date.now(),
-        }),
+        get_services_status: () =>
+          scenario === "degraded"
+            ? {
+                services: degraded(),
+                allRunning: false,
+                running: 0,
+                total: 3,
+                systemdAvailable: false,
+                observedAtMs: Date.now(),
+                error: {
+                  code: "systemd_unavailable",
+                  message: "systemd is not available on this system",
+                  hint: "This system does not run systemd (containers usually do not). Servora needs systemd to manage services.",
+                },
+              }
+            : {
+                services,
+                allRunning: services.every((s) => s.state === "active"),
+                running: services.filter((s) => s.state === "active").length,
+                total: services.length,
+                systemdAvailable: true,
+                observedAtMs: Date.now(),
+              },
         get_service_status: () => services[0],
         get_app_settings: () => settings,
         save_app_settings: (args) => Object.assign(settings, args.settings),
@@ -146,16 +172,27 @@
           minLineLimit: 50,
           maxLineLimit: 5000,
         }),
-        get_service_logs: (args) => ({
-          service: args.request.service,
-          unit: `${args.request.service}.service`,
-          level: args.request.level,
-          entries: logs.slice(-(args.request.limit || 300)),
-          count: Math.min(logs.length, args.request.limit || 300),
-          truncated: false,
-          requestedLines: args.request.limit || 300,
-          retrievedAtMs: Date.now(),
-        }),
+        get_service_logs: (args) => {
+          if (scenario === "logerror") {
+            throw {
+              code: "log_retrieval_failed",
+              message:
+                "Failed to open /var/log/journal: Permission denied",
+              hint:
+                "Make sure `journalctl` is available and your user can read the journal (`usermod -aG systemd-journal $USER`).",
+            };
+          }
+          return {
+            service: args.request.service,
+            unit: `${args.request.service}.service`,
+            level: args.request.level,
+            entries: logs.slice(-(args.request.limit || 300)),
+            count: Math.min(logs.length, args.request.limit || 300),
+            truncated: false,
+            requestedLines: args.request.limit || 300,
+            retrievedAtMs: Date.now(),
+          };
+        },
         start_service: (args) => ({}, void args),
         "plugin:event|listen": () => 1,
         "plugin:event|unlisten": () => null,
