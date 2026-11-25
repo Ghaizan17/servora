@@ -114,7 +114,16 @@ Useful scripts:
 | `npm run app:build` | Production build + bundles |
 | `npm run app:build:rpm` | Build the RPM package only |
 | `npm run app:build:appimage` | Build the AppImage only |
-| `cargo test --manifest-path src-tauri/Cargo.toml` | Rust unit tests |
+| `cargo test --manifest-path src-tauri/Cargo.toml --workspace` | Rust unit + integration tests |
+| `cargo test -p servora-core` | Business-logic tests only (fast, no system access) |
+
+Live write tests are opt-in because they rewrite real Apache configuration and
+need Polkit authentication:
+
+```bash
+SERVORA_ALLOW_SITE_TESTS=1 cargo test --release --test website_live -- --ignored
+SERVORA_IMPORT_DOMAINS="example.test" cargo test --test siteforge_import_live -- --ignored
+```
 
 The Vite dev server alone cannot control services; open
 <http://localhost:1420/dev/preview.html> for a UI preview harness that renders the
@@ -142,6 +151,10 @@ sudo dnf install ./src-tauri/target/release/bundle/rpm/servora-*.x86_64.rpm
 servora
 ```
 
+The RPM also installs the privileged pieces the website manager needs
+(`/usr/libexec/servora-helper` and the Polkit action) and removes them again on
+uninstall.
+
 ### AppImage
 
 ```bash
@@ -149,11 +162,39 @@ chmod +x Servora_*.AppImage
 ./Servora_*.AppImage
 ```
 
+An AppImage cannot write outside `$HOME`, so the website manager needs the
+privileged pieces installed once, as root:
+
+```bash
+# from an extracted AppImage (./Servora_*.AppImage --appimage-extract)
+sudo ./packaging/install-privileged.sh squashfs-root/usr/lib/Servora
+```
+
+Without that step the service dashboard, logs and settings work normally and every
+website action fails with `helper_missing` instead of half-succeeding.
+
 ### Manual (development tree)
 
 ```bash
 npm run app:build
 install -Dm755 src-tauri/target/release/servora ~/.local/bin/servora
+```
+
+Then create a launcher so it appears in your application menu:
+
+```bash
+mkdir -p ~/.local/share/applications
+cat > ~/.local/share/applications/servora.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Name=Servora
+Comment=Local development environment manager
+Exec=$HOME/.local/bin/servora
+Icon=servora
+Categories=Development;
+StartupWMClass=servora
+Terminal=false
+EOF
 ```
 
 ## Usage
@@ -265,20 +306,73 @@ defaults are used. Application logs go to
 
 ## Uninstallation
 
+Remove the websites first if you do not want their configuration to stay behind:
+**Websites → open a site → Remove**. That takes away the VirtualHost, the
+`/etc/hosts` line, the ACLs and the SELinux rules Servora added, and keeps your
+project files.
+
+### 1. Remove the application
+
 ```bash
-# RPM install
+# RPM
 sudo dnf remove servora
+```
 
-# AppImage / manual
+The package's pre-remove script deletes `/usr/libexec/servora-helper` and
+`/usr/share/polkit-1/actions/dev.servora.app.manage-sites.policy` together with
+the binary, the desktop entry and the icons.
+
+```bash
+# AppImage (nothing was installed outside $HOME)
+rm -f Servora_*.AppImage
+
+# Manual / development install — these are not tracked by any package
 rm -f ~/.local/bin/servora
-rm -rf ~/.config/servora ~/.local/state/servora
+rm -f ~/.local/share/applications/servora.desktop
+find ~/.local/share/icons/hicolor -name servora.png -delete
+rm -rf ~/.cache/servora
+gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null
+update-desktop-database ~/.local/share/applications 2>/dev/null
+```
 
-# If you installed the optional Polkit rule
+If you installed the optional Polkit rule, remove it too:
+
+```bash
 sudo rm -f /etc/polkit-1/rules.d/49-servora-managed-units.rules
 sudo systemctl restart polkit
 ```
 
-Removing Servora never stops or removes httpd, php-fpm or mariadb.
+### 2. Remove your data (optional)
+
+```bash
+rm -rf ~/.config/servora        # settings
+rm -rf ~/.local/share/servora   # website metadata, history, migration log
+rm -rf ~/.local/state/servora   # application log
+sudo rm -rf /var/lib/servora    # backups of every /etc file Servora replaced
+```
+
+Ignoring this step leaves no executables and no services behind — only a few
+kilobytes of JSON and the backups.
+
+### What stays on purpose
+
+Servora writes ordinary Apache configuration. Removing the application does not
+touch it, so your sites keep serving:
+
+| Left behind | Where | Remove it with |
+| --- | --- | --- |
+| VirtualHosts Servora generated | `/etc/httpd/conf.d/<domain>.conf` (marked `# Managed by Servora`) | delete the file, or remove the site in the app first |
+| Managed domain block | `/etc/hosts` between `# BEGIN`/`# END SERVORA MANAGED DOMAINS` | delete those lines |
+| Backups of replaced files | `/var/lib/servora/backups/` | `sudo rm -rf /var/lib/servora` |
+
+After deleting configuration by hand, validate and reload Apache:
+
+```bash
+sudo apachectl configtest && sudo systemctl reload httpd
+```
+
+Removing Servora never stops or removes httpd, php-fpm or mariadb, and never
+deletes project files, databases or uploads.
 
 ## Project layout
 
@@ -293,20 +387,45 @@ servora/
 │   ├── pages/                  # Dashboard, Websites, Domains, Logs,
 │   └── styles/app.css          # Tailwind 4 + design tokens
 ├── src-tauri/
+│   ├── crates/
+│   │   ├── servora-core/       # all business logic (no Tauri, no root)
+│   │   │   ├── domain.rs       #   domain rules
+│   │   │   ├── hosts.rs        #   managed /etc/hosts block
+│   │   │   ├── virtualhost.rs  #   VirtualHost render + parse + ownership
+│   │   │   ├── project.rs      #   framework detection
+│   │   │   ├── permissions.rs  #   ACL planner
+│   │   │   ├── selinux.rs      #   fcontext + restorecon
+│   │   │   ├── plan.rs         #   typed steps, snapshot + rollback
+│   │   │   ├── operations.rs   #   create / update / remove plans
+│   │   │   └── diagnostics.rs  #   health checks
+│   │   └── servora-helper/     # privileged executor (pkexec only)
 │   ├── src/
 │   │   ├── commands/           # Tauri IPC surface
 │   │   ├── models/             # typed service/settings/log models
-│   │   ├── services/           # systemd, journal, config, logging, authz, batch
+│   │   ├── services/           # systemd, journal, config, logging, authz,
+│   │   │                       # batch, sites, privileged (pkexec)
 │   │   ├── error.rs            # structured errors
 │   │   ├── state.rs            # shared state
 │   │   └── tray.rs             # tray icon + menu
-│   ├── tests/                  # live systemd integration tests
+│   ├── tests/                  # systemd + website live integration tests
 │   └── tauri.conf.json
-├── docs/polkit/                # optional Polkit rule
+├── packaging/                  # AppImage helper/policy installer
+├── docs/polkit/                # Polkit action + optional managed-units rule
 ├── docs/screenshots/           # UI screenshots
 ├── docs/branding/              # application icon source
 └── docs/IMPLEMENTATION.md      # development checklist and status
 ```
+
+## Documentation
+
+| Document | Contents |
+| --- | --- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, request flow, storage, failure behaviour |
+| [docs/WEBSITE_MANAGER.md](docs/WEBSITE_MANAGER.md) | Site anatomy, create flow, status badges, import |
+| [docs/SECURITY.md](docs/SECURITY.md) | Trust boundaries, helper refusals, files written |
+| [docs/INSTALLATION.md](docs/INSTALLATION.md) | RPM, AppImage and source installs |
+| [docs/SITEFORGE_MIGRATION_AUDIT.md](docs/SITEFORGE_MIGRATION_AUDIT.md) | What the old tool did and why we replace it |
+| [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) | Build checklist, test inventory, verification log |
 
 ## Contributing
 

@@ -33,6 +33,15 @@ All notable changes to Servora are documented here. The format follows
 - Privileged backups are written to `/var/lib/servora/backups` instead of the
   helper's `$HOME`, which after `pkexec` is `/root`.
 
+### Documentation
+
+- README documents the whole uninstall path: package removal, the manual-install
+  leftovers (`~/.local/bin`, launcher, icons, caches), the data directories,
+  `/var/lib/servora` backups, and the Apache configuration that is left in place
+  on purpose so sites keep serving.
+- README documents the AppImage privileged-pieces step and the workspace layer of
+  the project layout.
+
 ### Changed
 
 - Navigation is grouped into *Workspace* (Dashboard, Websites, Domains, Logs) and

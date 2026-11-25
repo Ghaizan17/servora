@@ -51,10 +51,12 @@ An AppImage cannot write outside `$HOME`, so creating websites needs the helper
 and the Polkit action installed once:
 
 ```bash
-sudo install -Dm0755 <extracted>/servora-helper /usr/libexec/servora-helper
-sudo install -Dm0644 docs/polkit/dev.servora.app.manage-sites.policy \
-  /usr/share/polkit-1/actions/dev.servora.app.manage-sites.policy
+sudo ./packaging/install-privileged.sh squashfs-root/usr/lib/Servora
 ```
+
+The script installs `/usr/libexec/servora-helper` (0755, root:root) and
+`/usr/share/polkit-1/actions/dev.servora.app.manage-sites.policy` (0644), which is
+exactly what the RPM's post-install scriptlet does.
 
 `<extracted>` is the folder produced by
 `./Servora_0.1.0_amd64.AppImage --appimage-extract`; the helper sits next to the
@@ -90,3 +92,22 @@ npm run dev                         # browser harness at dev/preview.html
 
 Servora never starts at login and never enables a service silently: it only
 reports what it sees until you press a button.
+
+## Uninstalling
+
+`sudo dnf remove servora` removes the binary, the helper, the Polkit action, the
+desktop entry and the icons. Your data is left in place:
+
+```bash
+rm -rf ~/.config/servora ~/.local/share/servora ~/.local/state/servora
+sudo rm -rf /var/lib/servora      # backups of replaced /etc files
+```
+
+Apache configuration Servora generated is deliberately **not** removed, so your
+sites keep serving: the VirtualHosts in `/etc/httpd/conf.d/` (marked
+`# Managed by Servora`) and the managed block in `/etc/hosts`. Remove the sites
+inside the app first if you want them gone, or delete those files by hand and run
+`sudo apachectl configtest && sudo systemctl reload httpd`.
+
+The README's *Uninstallation* section lists every path, including the manual
+install leftovers (`~/.local/bin/servora`, the `.desktop` entry and the icons).
